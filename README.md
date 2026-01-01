@@ -1,8 +1,4 @@
-# Security Contribution Tracking - GSoC Proposal
-
-## Overview
-
-**GitHub Security Contribution Gamification & Recognition Platform**
+# GitHub Security Contribution Gamification & Recognition Platform - GSoC Proposal
 
 Building on: BLT's existing GitHubIssue/GitHubReview/webhook infrastructure, CVE fields, BACON, badges, and daily challenges work (PR #5245).
 
