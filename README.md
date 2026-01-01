@@ -1,6 +1,6 @@
 # Security Contribution Tracking - GSoC Proposal
 
-## 🎯 Overview
+## Overview
 
 **GitHub Security Contribution Gamification & Recognition Platform**
 
@@ -12,7 +12,7 @@ Building on: BLT's existing GitHubIssue/GitHubReview/webhook infrastructure, CVE
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ### Architecture Diagram
 
@@ -264,7 +264,7 @@ erDiagram
 
 ---
 
-## 🔄 Complete Workflow Sequence
+## Complete Workflow Sequence
 
 ### Main Flow: PR Merge to BACON Award
 
@@ -348,7 +348,7 @@ sequenceDiagram
 
 ---
 
-## 📊 Integration with Existing BLT Infrastructure
+## Integration with Existing BLT Infrastructure
 
 ### Key Integration Points
 
@@ -389,7 +389,7 @@ sequenceDiagram
 
 ---
 
-## 📁 Implementation Details
+## Implementation Details
 
 ### New Model: GitHubSecurityContribution
 
@@ -691,7 +691,7 @@ class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMix
 
 ---
 
-## 📋 Files to Create/Modify
+## Files to Create/Modify
 
 ### New Files
 
@@ -722,7 +722,7 @@ nvdlib = "^0.3.0"  # NVD API client
 
 ---
 
-## 🚀 Implementation Timeline (~390h total)
+## Implementation Timeline (~390h total)
 
 ### Milestone 1: CVE Detection & Tracking (70h)
 
@@ -792,7 +792,7 @@ nvdlib = "^0.3.0"  # NVD API client
 
 ---
 
-## 🛡️ Security & Fraud Prevention
+## Security & Fraud Prevention
 
 1. **Rate Limiting**
 
@@ -817,30 +817,30 @@ nvdlib = "^0.3.0"  # NVD API client
 
 ---
 
-## ✅ Success Criteria
+## Success Criteria
 
-1. ✅ CVE detection works for merged PRs
-2. ✅ NVD API integration validates CVEs
-3. ✅ Maintainer verification workflow functional
-4. ✅ BACON rewards awarded correctly (Critical=100, High=75, Medium=50, Low=25)
-5. ✅ Badges awarded for milestones
-6. ✅ Security leaderboard displays correctly
-7. ✅ Challenges track security contributions
-8. ✅ Fraud prevention measures effective
-9. ✅ Performance acceptable (<500ms for verification)
-10. ✅ Documentation complete
+1. CVE detection works for merged PRs
+2. NVD API integration validates CVEs
+3. Maintainer verification workflow functional
+4. BACON rewards awarded correctly (Critical=100, High=75, Medium=50, Low=25)
+5. Badges awarded for milestones
+6. Security leaderboard displays correctly
+7. Challenges track security contributions
+8. Fraud prevention measures effective
+9. Performance acceptable (<500ms for verification)
+10. Documentation complete
 
 ---
 
-## 📊 Scope & Limitations
+## Scope & Limitations
 
-### What This Tracks ✅
+### What This Tracks 
 
-- ✅ Publicly disclosed CVE fixes (post-disclosure only)
-- ✅ Merged PRs with CVE references
-- ✅ Published GitHub Security Advisories
-- ✅ Security reviews and security-labeled issues
-- ✅ Security-labeled PRs (if GitHub provides labels)
+- Publicly disclosed CVE fixes (post-disclosure only)
+- Merged PRs with CVE references
+- Published GitHub Security Advisories
+- Security reviews and security-labeled issues
+- Security-labeled PRs (if GitHub provides labels)
 
 ### What This Doesn't Track ❌
 
@@ -864,7 +864,7 @@ If CVE scope is insufficient, can pivot to tracking:
 - Security-labeled PRs/issues
 - Security review contributions
 
-## 📊 Data Flow Summary
+## Data Flow Summary
 
 ```
 GitHub PR Merge (with CVE reference)
@@ -900,7 +900,7 @@ Leaderboard updates rankings
 
 ---
 
-## 🎨 UI/UX Considerations
+## UI/UX Considerations
 
 - Uses Tailwind CSS (existing BLT standard)
 - Brand color: `#e74c3c` (red)
@@ -920,7 +920,7 @@ Leaderboard updates rankings
 
 ---
 
-## 🎁 Bonus: MY-GSOC-TOOL Integration
+## Bonus: MY-GSOC-TOOL Integration
 
 Since we're tracking security contribution data, it could connect to MY-GSOC-TOOL—students could showcase security PRs in GSoC portfolios. Not core scope, but easy to add a REST API endpoint later:
 
@@ -936,12 +936,12 @@ class SecurityContributionAPIView(APIView):
         return Response(contributions)
 ```
 
-## 📚 Related Work
+## Related Work
 
 - **PR #5057:** CVE Search, Filtering, Caching, Autocomplete (Open) – proves CVE system understanding
 - **PR #5245:** Daily Challenges with 24-Hour Reset (Open) – gamification infrastructure
 - **PR #5371:** Security Headers & CSRF (Open) – security expertise
 - **PR #5351:** Session Security, Rate Limiting (Open) – anti-fraud experience
-- **PR #5023:** Console.log removal (Merged) ✅
+- **PR #5023:** Console.log removal (Merged) 
 
 **Note:** This proposal builds entirely on top of existing BLT infrastructure. No existing features are replaced or removed. All new functionality integrates seamlessly with current systems including GitHub webhooks, BACON rewards, badges, challenges, and leaderboards.
