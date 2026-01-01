@@ -129,10 +129,11 @@ graph TB
     ANALYTICS -->|renders| SECDASH
     SECLB -->|renders| LEADERBOARDUI
 
+    style SECLB fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+
     style GHSC fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#fff
     style VERIFYVIEW fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
     style NVDAPI fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
-    style SECLB fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
     style SECCHAL fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
 ```
 
@@ -451,14 +452,6 @@ class GitHubSecurityContribution(models.Model):
         blank=True,
         related_name="verified_security_contributions"
     )
-    second_verifier = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="second_verified_security_contributions",
-        help_text="Required for CRITICAL/HIGH severity CVEs (if dual verification enabled)"
-    )
     verified_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -505,19 +498,19 @@ def check_rate_limit(contributor):
     from django.utils import timezone
     from datetime import timedelta
     from website.models import GitHubSecurityContribution
-    
+
     month_ago = timezone.now() - timedelta(days=30)
     recent_claims = GitHubSecurityContribution.objects.filter(
         contributor=contributor,
         created_at__gte=month_ago
     ).count()
-    
+
     return recent_claims < 5
 
 def check_spam_history(contributor):
     """Check contributor's spam/rejection history"""
     from website.models import GitHubSecurityContribution
-    
+
     rejection_rate = GitHubSecurityContribution.objects.filter(
         contributor=contributor,
         verification_status='rejected'
@@ -525,7 +518,7 @@ def check_spam_history(contributor):
         GitHubSecurityContribution.objects.filter(contributor=contributor).count(),
         1
     )
-    
+
     return rejection_rate < 0.5  # Allow if <50% rejection rate
 
 def validate_cve_and_get_score(cve_id):
@@ -551,7 +544,7 @@ def validate_cve_and_get_score(cve_id):
             }
     except Exception as e:
         logger.error(f"Error validating CVE {cve_id}: {e}")
-    
+
     return {
         'valid': False,
         'cve_id': cve_id,
@@ -656,7 +649,7 @@ class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMix
     model = GitHubSecurityContribution
     template_name = 'security/verification_dashboard.html'
     context_object_name = 'contributions'
-    
+
     def test_func(self):
         return self.request.user.has_perm('website.can_verify_security_contributions')
 
@@ -676,22 +669,8 @@ class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMix
 
         try:
             contribution = GitHubSecurityContribution.objects.get(id=contribution_id)
-            
-            # Check if dual verification required for CRITICAL/HIGH
-            requires_dual_verification = contribution.severity in ['Critical', 'High']
-            if requires_dual_verification and action == 'verify':
-                if not contribution.verifier:
-                    # First verifier
-                    contribution.verifier = request.user
-                    contribution.verification_status = 'pending'  # Still pending until second verifier
-                elif contribution.verifier != request.user:
-                    # Second verifier
-                    contribution.second_verifier = request.user
-                    contribution.verification_status = 'verified'
-                    contribution.verified_at = timezone.now()
-                else:
-                    return JsonResponse({'success': False, 'error': 'Cannot verify your own verification'})
-            elif action == 'verify':
+
+            if action == 'verify':
                 contribution.verification_status = 'verified'
                 contribution.verifier = request.user
                 contribution.verified_at = timezone.now()
@@ -703,53 +682,11 @@ class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMix
             elif action == 'dispute':
                 contribution.verification_status = 'disputed'
                 contribution.verification_notes = reason
-            
+
             contribution.save()
             return JsonResponse({'success': True})
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
-```
-
-### Security Leaderboard View
-
-**File:** `website/views/user.py` (MODIFY)
-
-```python
-class SecurityLeaderboardView(LeaderboardBase, ListView):
-    """Security contribution leaderboard"""
-    model = User
-    template_name = "leaderboard_security.html"
-
-    def get_context_data(self, *args, **kwargs):
-        context = super().get_context_data(*args, **kwargs)
-
-        from ..models import GitHubSecurityContribution
-        from django.db.models import Count, Sum, Q, Case, When, IntegerField
-
-        security_leaderboard = (
-            GitHubSecurityContribution.objects
-            .filter(verification_status='verified')
-            .values('contributor__name', 'contributor__github_url')
-            .annotate(
-                total_contributions=Count('id'),
-                critical_count=Count('id', filter=Q(severity='Critical')),
-                high_count=Count('id', filter=Q(severity='High')),
-                total_bacon=Sum(
-                    Case(
-                        When(severity='Critical', then=100),
-                        When(severity='High', then=75),
-                        When(severity='Medium', then=50),
-                        When(severity='Low', then=25),
-                        default=10,
-                        output_field=IntegerField()
-                    )
-                )
-            )
-            .order_by('-total_bacon')[:10]
-        )
-
-        context['security_leaderboard'] = security_leaderboard
-        return context
 ```
 
 ---
@@ -788,6 +725,7 @@ nvdlib = "^0.3.0"  # NVD API client
 ## 🚀 Implementation Timeline (~390h total)
 
 ### Milestone 1: CVE Detection & Tracking (70h)
+
 - Extract CVE IDs from merged PR/issue content using existing `CVE-\d{4}-\d{4,7}` pattern
 - Link to `Issue.cve_id`, store in new `GitHubSecurityContribution` model
 - Wire into `github_webhook` handlers
@@ -795,6 +733,7 @@ nvdlib = "^0.3.0"  # NVD API client
 - **Post-disclosure scope:** Track CVE contributions after public disclosure (respects responsible disclosure practices)
 
 ### Milestone 2: NVD API Validation & Pre-Screening (50h)
+
 - Integrate `nvdlib` (NIST NVD API wrapper) to validate CVE IDs exist
 - Fetch severity scores (CRITICAL/HIGH/MEDIUM/LOW) and descriptions
 - Pre-screen contributions to block:
@@ -805,14 +744,15 @@ nvdlib = "^0.3.0"  # NVD API client
 - Rate limiting: Max 5 CVE contribution claims per contributor per month (Django cache)
 
 ### Milestone 3: Maintainer Verification Workflow (80h)
+
 - Build `SecurityContributionVerificationView` admin dashboard for maintainers
-- New model fields: `verification_status`, `verified_by`, `verification_notes`, `second_verifier`
+- New model fields: `verification_status`, `verified_by`, `verification_notes`
 - Permissions: Add `can_verify_security_contributions` permission
 - Dashboard shows: CVE details from NVD, PR diff, contributor history
 - Actions: Verify, Reject, Request More Info, Dispute
-- Optional: Require 2 maintainers for CRITICAL/HIGH severity CVEs
 
 ### Milestone 4: Reward Distribution (40h)
+
 - Use `giveBacon()` from `feed_signals.py` so verified CVE-fix PRs auto-earn BACON
 - Scaled by severity: Critical=100, High=75, Medium=50, Low=25
 - Security badges via existing `Badge`/`UserBadge` models
@@ -820,6 +760,7 @@ nvdlib = "^0.3.0"  # NVD API client
 - Tracks `bacon_awarded` and `bacon_amount` fields
 
 ### Milestone 5: Security Leaderboards (50h)
+
 - Build leaderboards extending `LeaderboardBase`
 - Rank by impact (`cve_score × contribution count`)
 - Separate views for PRs, reviews, and security issues
@@ -827,17 +768,20 @@ nvdlib = "^0.3.0"  # NVD API client
 - Contributor reputation metrics
 
 ### Milestone 6: Security Daily Challenges (40h)
+
 - Add GitHub security challenge types to `DailyChallenge.CHALLENGE_TYPE_CHOICES` (from PR #5245)
 - Extend `check_and_complete_challenges()` to validate via `GitHubSecurityContribution`
 - Examples: "Fix a MEDIUM+ CVE this week", "Review 3 security PRs"
 
 ### Milestone 7: Security Dashboard UI (60h)
+
 - Create accessible, dark-mode `SecurityContributionDashboardView`
 - Shows contributions, badges, verification status, timelines, impact metrics
 - Reuse ARIA/dark-mode patterns from PRs #4937 and #5169
 - Charts for CVE trends (Chart.js), severity distribution, top contributors
 
 ### Milestone 8: Analytics, Tests & Docs (70h)
+
 - `SecurityAnalyticsView` with Django ORM aggregations for CVE fixes over time
 - Top contributors/orgs analytics
 - End-to-end tests extending `test_github_webhook.py`
@@ -904,7 +848,8 @@ nvdlib = "^0.3.0"  # NVD API client
 - ❌ Unpublished security advisories
 - ❌ Pre-disclosure contributions
 
-**Why Post-Disclosure?** 
+**Why Post-Disclosure?**
+
 - **Ethical:** Respects responsible disclosure practices
 - **Secure:** No premature vulnerability leaks
 - **Practical:** Most CVE work eventually becomes public
@@ -913,6 +858,7 @@ nvdlib = "^0.3.0"  # NVD API client
 ### Alternative Scope (If Needed)
 
 If CVE scope is insufficient, can pivot to tracking:
+
 - Dependabot security PRs
 - CodeQL security findings
 - Security-labeled PRs/issues
@@ -940,7 +886,6 @@ Verification Dashboard (maintainer reviews)
   - Shows contributor history
     ↓
 Update status to 'verified' (or 'rejected'/'disputed')
-  - Dual verification for CRITICAL/HIGH (optional)
     ↓
 Django Signal triggers (only if verified)
     ↓
@@ -974,18 +919,6 @@ Leaderboard updates rankings
   - Top contributors visualization
 
 ---
-
-## ❓ Questions for Mentors
-
-Before finalizing implementation, I need guidance on:
-
-1. **Tracking Scope:** Is post-disclosure CVE tracking acceptable? (Cannot track private/embargoed work due to GitHub API limitations and ethical disclosure practices.) Alternative: Pivot to tracking Dependabot/CodeQL/security-labeled PRs if CVE scope insufficient.
-
-2. **Verification Permissions:** Who should have `can_verify_security_contributions` permission? (All maintainers vs. security team only)
-
-3. **Approval Policy:** Require 2 maintainers for CRITICAL/HIGH severity CVEs? (Currently implemented as optional dual verification)
-
-4. **Reward Amounts:** Are proposed BACON amounts appropriate? (CRITICAL=100, HIGH=75, MEDIUM=50, LOW=25)
 
 ## 🎁 Bonus: MY-GSOC-TOOL Integration
 
