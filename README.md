@@ -185,8 +185,6 @@ erDiagram
         string name
         string github_url
     }
-    
-    Note: github_id is currently IntegerField, but should be BigIntegerField for GitHub IDs > 2^31
 
     Repo {
         int id PK
@@ -220,8 +218,6 @@ erDiagram
         string cve_id
         decimal cve_score
     }
-    
-    Note: Issue.cve_score currently has max_digits=2, needs migration to max_digits=3 for CVSS scores up to 10.0
 
     GitHubSecurityContribution {
         int id PK
@@ -866,7 +862,7 @@ nvdlib = "^0.3.0"  # NVD API client
 
 ## Scope & Limitations
 
-### What This Tracks 
+### What This Tracks
 
 - Publicly disclosed CVE fixes (post-disclosure only)
 - Merged PRs with CVE references
@@ -974,6 +970,6 @@ class SecurityContributionAPIView(APIView):
 - **PR #5245:** Daily Challenges with 24-Hour Reset (Open) – gamification infrastructure
 - **PR #5371:** Security Headers & CSRF (Open) – security expertise
 - **PR #5351:** Session Security, Rate Limiting (Open) – anti-fraud experience
-- **PR #5023:** Console.log removal (Merged) 
+- **PR #5023:** Console.log removal (Merged)
 
 **Note:** This proposal builds entirely on top of existing BLT infrastructure. No existing features are replaced or removed. All new functionality integrates seamlessly with current systems including GitHub webhooks, BACON rewards, badges, challenges, and leaderboards.
