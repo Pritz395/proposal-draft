@@ -262,6 +262,10 @@ erDiagram
     }
 ```
 
+**Note on Field Types:**
+- `Contributor.github_id`: Currently `IntegerField` in codebase. Consider migrating to `BigIntegerField` for GitHub IDs > 2^31 (future-proofing).
+- `Issue.cve_score`: Currently `max_digits=2` in codebase. Requires migration to `max_digits=3` to support CVSS scores up to 10.0 (see Database Changes section below).
+
 ---
 
 ## Complete Workflow Sequence
