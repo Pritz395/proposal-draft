@@ -1,0 +1,825 @@
+# Security Contribution Tracking - GSoC Proposal
+
+## 🎯 Overview
+
+This proposal adds comprehensive security contribution tracking to BLT, building on top of existing infrastructure without replacing any components. The system automatically detects CVE references in merged PRs, validates them via NVD API, enables maintainer verification, and awards BACON tokens and badges based on severity.
+
+---
+
+## 🏗️ System Architecture
+
+### Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "GitHub Integration Layer"
+        GH[GitHub Webhook]
+        GHPR[Pull Request Events]
+        GHREV[Review Events]
+    end
+
+    subgraph "BLT Webhook Handler (Existing)"
+        WEBHOOK[github_webhook view]
+        PRHANDLER[handle_pull_request_event]
+        REVHANDLER[handle_review_event]
+    end
+
+    subgraph "CVE Detection & Validation"
+        CVEDETECT[CVE Pattern Matcher]
+        NVDAPI[NVD API Client<br/>nvdlib]
+        CVESCORE[CVE Severity Calculator]
+    end
+
+    subgraph "Database Models (Existing + New)"
+        GHI[GitHubIssue<br/>Existing]
+        GHR[GitHubReview<br/>Existing]
+        ISSUE[Issue<br/>cve_id, cve_score<br/>Existing]
+        GHSC[GitHubSecurityContribution<br/>NEW MODEL]
+        USER[User/UserProfile<br/>Existing]
+        CONTRIB[Contributor<br/>Existing]
+        REPO[Repo<br/>Existing]
+    end
+
+    subgraph "Verification Workflow"
+        VERIFYVIEW[SecurityContributionVerificationView<br/>NEW VIEW]
+        VERIFIER[Maintainer/Verifier<br/>is_verifier=True]
+        VERIFYSTATUS[verification_status<br/>pending/verified/rejected]
+    end
+
+    subgraph "Reward System (Existing)"
+        SIGNAL[post_save signal<br/>on verification]
+        GIVEBACON[giveBacon function<br/>feed_signals.py]
+        BACON[BaconEarning<br/>Existing]
+        BADGE[Badge/UserBadge<br/>Existing]
+    end
+
+    subgraph "Leaderboard System (Existing + Extension)"
+        LBASE[LeaderboardBase<br/>Existing]
+        SECLB[SecurityLeaderboardView<br/>EXTENDS LeaderboardBase]
+        GLOBLB[GlobalLeaderboardView<br/>Existing]
+    end
+
+    subgraph "Challenge System (Existing + Extension)"
+        CHALLENGE[Challenge Model<br/>Existing]
+        CHALSIG[challenge_signals.py<br/>update_challenge_progress]
+        SECCHAL[Security Daily Challenges<br/>EXTENDS Challenge]
+    end
+
+    subgraph "Analytics & Security"
+        RATELIMIT[Rate Limiting Middleware<br/>Existing]
+        SPAMDETECT[Spam Detection<br/>NEW]
+        ANALYTICS[Security Analytics Dashboard<br/>NEW VIEW]
+    end
+
+    subgraph "UI Components"
+        SECDASH[Security Dashboard<br/>NEW TEMPLATE]
+        VERIFYDASH[Verification Dashboard<br/>NEW TEMPLATE]
+        LEADERBOARDUI[Leaderboard UI<br/>Existing]
+    end
+
+    %% Flow connections
+    GH -->|POST webhook| WEBHOOK
+    WEBHOOK -->|routes| PRHANDLER
+    WEBHOOK -->|routes| REVHANDLER
+
+    PRHANDLER -->|creates/updates| GHI
+    REVHANDLER -->|creates/updates| GHR
+
+    PRHANDLER -->|detects CVE in PR| CVEDETECT
+    CVEDETECT -->|extracts CVE ID| NVDAPI
+    NVDAPI -->|validates & fetches| CVESCORE
+    CVESCORE -->|creates| GHSC
+
+    GHSC -->|references| GHI
+    GHSC -->|references| GHR
+    GHSC -->|references| USER
+    GHSC -->|references| CONTRIB
+    GHSC -->|references| REPO
+    GHSC -->|cve_id links to| ISSUE
+
+    GHSC -->|status: pending| VERIFYVIEW
+    VERIFIER -->|reviews in| VERIFYVIEW
+    VERIFYVIEW -->|updates| VERIFYSTATUS
+
+    VERIFYSTATUS -->|verified| SIGNAL
+    SIGNAL -->|triggers| GIVEBACON
+    GIVEBACON -->|awards| BACON
+    SIGNAL -->|awards| BADGE
+
+    GHSC -->|aggregated| SECLB
+    SECLB -->|extends| LBASE
+    LBASE -->|used by| GLOBLB
+
+    GHSC -->|tracks| SECCHAL
+    SECCHAL -->|extends| CHALLENGE
+    CHALLENGE -->|updates via| CHALSIG
+
+    GHSC -->|monitored by| RATELIMIT
+    GHSC -->|analyzed by| SPAMDETECT
+    GHSC -->|displayed in| ANALYTICS
+
+    VERIFYVIEW -->|renders| VERIFYDASH
+    ANALYTICS -->|renders| SECDASH
+    SECLB -->|renders| LEADERBOARDUI
+
+    style GHSC fill:#e74c3c,stroke:#c0392b,stroke-width:3px,color:#fff
+    style VERIFYVIEW fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    style NVDAPI fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    style SECLB fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    style SECCHAL fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+```
+
+### Database Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    User ||--o{ UserProfile : has
+    User ||--o{ UserBadge : "earns"
+    User ||--o{ BaconEarning : "accumulates"
+    User ||--o{ GitHubSecurityContribution : "creates"
+
+    UserProfile ||--o{ GitHubIssue : "creates"
+    UserProfile ||--o{ GitHubReview : "reviews"
+    UserProfile ||--o{ Issue : "reports"
+
+    Contributor ||--o{ GitHubIssue : "contributes"
+    Contributor ||--o{ GitHubReview : "reviews"
+    Contributor ||--o{ GitHubSecurityContribution : "contributes"
+
+    Repo ||--o{ GitHubIssue : "contains"
+    Repo ||--o{ GitHubSecurityContribution : "tracks"
+
+    GitHubIssue ||--o{ GitHubReview : "has"
+    GitHubIssue ||--o{ GitHubSecurityContribution : "references"
+
+    Issue ||--o{ GitHubSecurityContribution : "linked via CVE"
+
+    Badge ||--o{ UserBadge : "awarded as"
+
+    Challenge ||--o{ GitHubSecurityContribution : "tracks"
+
+    User {
+        int id PK
+        string username
+        string email
+    }
+
+    UserProfile {
+        int id PK
+        int user_id FK
+        string github_url
+        boolean is_verifier
+    }
+
+    Contributor {
+        int id PK
+        bigint github_id UK
+        string name
+        string github_url
+    }
+
+    Repo {
+        int id PK
+        string repo_url UK
+        string name
+    }
+
+    GitHubIssue {
+        bigint id PK
+        bigint issue_id
+        int repo_id FK
+        int user_profile_id FK
+        int contributor_id FK
+        string type
+        boolean is_merged
+        datetime merged_at
+    }
+
+    GitHubReview {
+        bigint id PK
+        bigint review_id UK
+        bigint pull_request_id FK
+        int reviewer_id FK
+        int reviewer_contributor_id FK
+        string state
+    }
+
+    Issue {
+        int id PK
+        int user_id FK
+        string cve_id
+        decimal cve_score
+    }
+
+    GitHubSecurityContribution {
+        int id PK
+        bigint github_issue_id FK
+        bigint github_review_id FK
+        int contributor_id FK
+        int repo_id FK
+        string cve_id
+        decimal cve_score
+        string severity
+        string verification_status
+        int verifier_id FK
+        datetime verified_at
+        datetime created_at
+    }
+
+    Badge {
+        int id PK
+        string title
+        string type
+    }
+
+    UserBadge {
+        int id PK
+        int user_id FK
+        int badge_id FK
+        int awarded_by_id FK
+        datetime awarded_at
+    }
+
+    BaconEarning {
+        int id PK
+        int user_id FK
+        int tokens_earned
+    }
+
+    Challenge {
+        int id PK
+        string title
+        string challenge_type
+        int bacon_reward
+    }
+```
+
+---
+
+## 🔄 Complete Workflow Sequence
+
+### Main Flow: PR Merge to BACON Award
+
+```mermaid
+sequenceDiagram
+    participant GH as GitHub
+    participant WH as Webhook Handler<br/>(github_webhook)
+    participant PRH as PR Event Handler<br/>(handle_pull_request_event)
+    participant CVED as CVE Detector<br/>(NEW)
+    participant NVD as NVD API<br/>(nvdlib)
+    participant DB as Database<br/>(GitHubSecurityContribution)
+    participant VER as Verification View<br/>(SecurityContributionVerificationView)
+    participant MAINT as Maintainer<br/>(is_verifier=True)
+    participant SIG as Django Signal<br/>(post_save)
+    participant BACON as giveBacon<br/>(feed_signals.py)
+    participant BADGE as Badge System<br/>(Existing)
+    participant CHAL as Challenge System<br/>(challenge_signals.py)
+    participant LB as Leaderboard<br/>(SecurityLeaderboardView)
+
+    Note over GH,MAINT: Phase 1: PR Merge Detection
+    GH->>WH: POST /github-webhook/<br/>pull_request event<br/>(action=closed, merged=true)
+    WH->>WH: Validate HMAC signature
+    WH->>PRH: Route to handle_pull_request_event()
+
+    Note over PRH,DB: Phase 2: CVE Detection & Validation
+    PRH->>PRH: Extract PR data<br/>(title, body, merged_at)
+    PRH->>PRH: Update/create GitHubIssue record
+    PRH->>CVED: Check for CVE pattern<br/>(CVE-YYYY-NNNNN)
+
+    alt CVE Pattern Found
+        CVED->>CVED: Extract CVE ID from PR text
+        CVED->>NVD: GET /rest/json/cves/2.0?cveId={cve_id}
+        NVD-->>CVED: CVE data + CVSS score
+
+        CVED->>CVED: Calculate severity<br/>(Critical/High/Medium/Low)
+        CVED->>DB: Create GitHubSecurityContribution<br/>status='pending'<br/>severity={calculated}<br/>cve_score={from NVD}
+
+        Note over DB: Links to:<br/>- GitHubIssue<br/>- Contributor<br/>- Repo
+    else No CVE Found
+        PRH->>PRH: Continue normal PR processing
+    end
+
+    Note over VER,MAINT: Phase 3: Maintainer Verification
+    DB->>VER: Query pending contributions<br/>(verification_status='pending')
+    VER->>MAINT: Display verification dashboard<br/>(SecurityContributionVerificationView)
+
+    MAINT->>VER: Review contribution details<br/>(CVE ID, PR link, severity)
+    MAINT->>VER: Click "Verify" or "Reject"
+
+    alt Verified
+        VER->>DB: Update GitHubSecurityContribution<br/>verification_status='verified'<br/>verifier_id={maintainer}<br/>verified_at={now}
+
+        Note over SIG,BADGE: Phase 4: Reward Distribution
+        DB->>SIG: post_save signal triggered<br/>(verification_status='verified')
+        SIG->>BACON: Calculate BACON reward<br/>(Critical=100, High=75,<br/>Medium=50, Low=25)
+        BACON->>BACON: Update BaconEarning<br/>tokens_earned += reward_amount
+
+        SIG->>BADGE: Check badge criteria<br/>(e.g., "First CVE Fix",<br/>"Critical Security Expert")
+        alt Badge Criteria Met
+            BADGE->>BADGE: Create UserBadge record
+        end
+
+        Note over CHAL,LB: Phase 5: Challenge & Leaderboard Updates
+        SIG->>CHAL: update_challenge_progress()<br/>challenge_title="Fix 5 CVEs"<br/>model=GitHubSecurityContribution
+        CHAL->>CHAL: Check if challenge completed
+        alt Challenge Completed
+            CHAL->>BACON: Award challenge BACON reward
+        end
+
+        SIG->>LB: Update SecurityLeaderboardView<br/>Aggregate by contributor
+        LB->>LB: Recalculate rankings
+
+        VER-->>MAINT: Success: Contribution verified<br/>BACON awarded
+    else Rejected
+        VER->>DB: Update GitHubSecurityContribution<br/>verification_status='rejected'<br/>verifier_id={maintainer}<br/>verified_at={now}
+        VER-->>MAINT: Contribution rejected<br/>(no rewards)
+    end
+
+    Note over GH,LB: End: Contribution tracked in<br/>leaderboards, challenges, and user profile
+```
+
+---
+
+## 📊 Integration with Existing BLT Infrastructure
+
+### Key Integration Points
+
+1. **GitHub Webhook System** (`website/views/user.py`)
+
+   - Extends `handle_pull_request_event()` to detect CVE references
+   - Extends `handle_review_event()` for review-based contributions
+   - No changes to webhook routing or signature validation
+
+2. **Database Models**
+
+   - **New:** `GitHubSecurityContribution` model
+   - **Uses:** Existing `GitHubIssue`, `GitHubReview`, `Contributor`, `Repo`, `UserProfile`
+   - **Links to:** Existing `Issue` model via `cve_id` field
+
+3. **Reward System** (`website/feed_signals.py`)
+
+   - Uses existing `giveBacon()` function
+   - Integrates with existing `BaconEarning` model
+   - Extends badge system via `Badge`/`UserBadge` models
+
+4. **Leaderboard System** (`website/views/user.py`)
+
+   - Extends `LeaderboardBase` class (no modifications to base)
+   - New `SecurityLeaderboardView` inherits all base functionality
+   - Integrates with existing `GlobalLeaderboardView`
+
+5. **Challenge System** (`website/challenge_signals.py`)
+
+   - Uses existing `update_challenge_progress()` function
+   - Extends `Challenge` model (no schema changes)
+   - Integrates with existing challenge completion flow
+
+6. **Verification System**
+   - Uses existing `UserProfile.is_verifier` field
+   - New view follows existing BLT view patterns
+   - No changes to user permission system
+
+---
+
+## 📁 Implementation Details
+
+### New Model: GitHubSecurityContribution
+
+```python
+class GitHubSecurityContribution(models.Model):
+    """Track CVE-related PRs and reviews for security contributions"""
+    github_issue = models.ForeignKey(
+        GitHubIssue,
+        on_delete=models.CASCADE,
+        related_name="security_contributions",
+        null=True,
+        blank=True
+    )
+    github_review = models.ForeignKey(
+        GitHubReview,
+        on_delete=models.CASCADE,
+        related_name="security_contributions",
+        null=True,
+        blank=True
+    )
+    contributor = models.ForeignKey(
+        Contributor,
+        on_delete=models.CASCADE,
+        related_name="security_contributions"
+    )
+    repo = models.ForeignKey(
+        Repo,
+        on_delete=models.CASCADE,
+        related_name="security_contributions"
+    )
+    cve_id = models.CharField(max_length=16)
+    cve_score = models.DecimalField(max_digits=3, decimal_places=1, null=True, blank=True)
+    severity = models.CharField(
+        max_length=10,
+        choices=[
+            ('Critical', 'Critical'),
+            ('High', 'High'),
+            ('Medium', 'Medium'),
+            ('Low', 'Low'),
+            ('Unknown', 'Unknown')
+        ]
+    )
+    verification_status = models.CharField(
+        max_length=10,
+        choices=[
+            ('pending', 'Pending'),
+            ('verified', 'Verified'),
+            ('rejected', 'Rejected')
+        ],
+        default='pending'
+    )
+    verifier = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="verified_security_contributions"
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['verification_status', 'created_at']),
+            models.Index(fields=['contributor', 'verification_status']),
+            models.Index(fields=['severity', 'verification_status']),
+        ]
+```
+
+### CVE Service Integration
+
+**File:** `website/services/cve_service.py` (NEW)
+
+```python
+import re
+import logging
+import nvdlib
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+CVE_PATTERN = re.compile(r'CVE-\d{4}-\d{4,}', re.IGNORECASE)
+
+def extract_cve_references(text):
+    """Extract CVE IDs from text"""
+    return CVE_PATTERN.findall(text)
+
+def validate_cve_and_get_score(cve_id):
+    """Validate CVE ID and fetch severity score from NVD API"""
+    try:
+        cve = nvdlib.searchCVE(cveId=cve_id, key=settings.NVD_API_KEY)
+        if cve:
+            cvss_score = cve[0].score[2] if cve[0].score else None
+            severity = calculate_severity(cvss_score)
+            return {
+                'valid': True,
+                'cve_id': cve_id,
+                'score': cvss_score,
+                'severity': severity
+            }
+    except Exception as e:
+        logger.error(f"Error validating CVE {cve_id}: {e}")
+
+    return {
+        'valid': False,
+        'cve_id': cve_id,
+        'score': None,
+        'severity': 'Unknown'
+    }
+
+def calculate_severity(score):
+    """Calculate severity from CVSS score"""
+    if score is None:
+        return 'Unknown'
+    if score >= 9.0:
+        return 'Critical'
+    elif score >= 7.0:
+        return 'High'
+    elif score >= 4.0:
+        return 'Medium'
+    elif score >= 0.1:
+        return 'Low'
+    return 'Unknown'
+```
+
+### Signal Handler for Rewards
+
+**File:** `website/security_signals.py` (NEW)
+
+```python
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from .models import GitHubSecurityContribution
+from .feed_signals import giveBacon
+from .challenge_signals import update_challenge_progress
+
+SECURITY_BACON_REWARDS = {
+    'Critical': 100,
+    'High': 75,
+    'Medium': 50,
+    'Low': 25,
+    'Unknown': 10
+}
+
+@receiver(post_save, sender=GitHubSecurityContribution)
+def handle_security_contribution_verification(sender, instance, created, **kwargs):
+    """Award BACON and badges when security contribution is verified"""
+    if instance.verification_status == 'verified' and instance.verifier:
+        reward_amount = SECURITY_BACON_REWARDS.get(instance.severity, 10)
+        contributor_user = instance.contributor.user_profile.user if instance.contributor.user_profile else None
+        if contributor_user:
+            giveBacon(contributor_user, amt=reward_amount)
+            update_challenge_progress(
+                contributor_user,
+                "Fix 5 Security Vulnerabilities",
+                GitHubSecurityContribution,
+                "Security contribution verified",
+                threshold=5
+            )
+            award_security_badges(contributor_user, instance)
+```
+
+### Webhook Handler Extension
+
+**File:** `website/views/user.py` (MODIFY)
+
+```python
+# In handle_pull_request_event(), after creating GitHubIssue:
+if is_merged:
+    from website.services.cve_service import extract_cve_references, validate_cve_and_get_score
+    from website.models import GitHubSecurityContribution
+
+    cve_ids = extract_cve_references(pr_title + " " + pr_body)
+    for cve_id in cve_ids:
+        cve_data = validate_cve_and_get_score(cve_id)
+        GitHubSecurityContribution.objects.create(
+            github_issue=github_issue,
+            contributor=contributor,
+            repo=repo,
+            cve_id=cve_id,
+            cve_score=cve_data['score'],
+            severity=cve_data['severity'],
+            verification_status='pending'
+        )
+```
+
+### Verification Dashboard View
+
+**File:** `website/views/security.py` (NEW)
+
+```python
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.views.generic import ListView
+from django.http import JsonResponse
+from django.utils import timezone
+from ..models import GitHubSecurityContribution
+
+class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """Dashboard for maintainers to verify security contributions"""
+    model = GitHubSecurityContribution
+    template_name = 'security/verification_dashboard.html'
+    context_object_name = 'contributions'
+
+    def test_func(self):
+        return self.request.user.userprofile.is_verifier
+
+    def get_queryset(self):
+        status = self.request.GET.get('status', 'pending')
+        return GitHubSecurityContribution.objects.filter(
+            verification_status=status
+        ).select_related(
+            'github_issue', 'github_review', 'contributor', 'repo', 'verifier'
+        ).order_by('-created_at')
+
+    def post(self, request):
+        """Handle verification/rejection"""
+        contribution_id = request.POST.get('contribution_id')
+        action = request.POST.get('action')  # 'verify' or 'reject'
+        reason = request.POST.get('reason', '')
+
+        try:
+            contribution = GitHubSecurityContribution.objects.get(id=contribution_id)
+            if action == 'verify':
+                contribution.verification_status = 'verified'
+                contribution.verifier = request.user
+                contribution.verified_at = timezone.now()
+            elif action == 'reject':
+                contribution.verification_status = 'rejected'
+                contribution.verifier = request.user
+                contribution.rejection_reason = reason
+                contribution.verified_at = timezone.now()
+
+            contribution.save()
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+```
+
+### Security Leaderboard View
+
+**File:** `website/views/user.py` (MODIFY)
+
+```python
+class SecurityLeaderboardView(LeaderboardBase, ListView):
+    """Security contribution leaderboard"""
+    model = User
+    template_name = "leaderboard_security.html"
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+
+        from ..models import GitHubSecurityContribution
+        from django.db.models import Count, Sum, Q, Case, When, IntegerField
+
+        security_leaderboard = (
+            GitHubSecurityContribution.objects
+            .filter(verification_status='verified')
+            .values('contributor__name', 'contributor__github_url')
+            .annotate(
+                total_contributions=Count('id'),
+                critical_count=Count('id', filter=Q(severity='Critical')),
+                high_count=Count('id', filter=Q(severity='High')),
+                total_bacon=Sum(
+                    Case(
+                        When(severity='Critical', then=100),
+                        When(severity='High', then=75),
+                        When(severity='Medium', then=50),
+                        When(severity='Low', then=25),
+                        default=10,
+                        output_field=IntegerField()
+                    )
+                )
+            )
+            .order_by('-total_bacon')[:10]
+        )
+
+        context['security_leaderboard'] = security_leaderboard
+        return context
+```
+
+---
+
+## 📋 Files to Create/Modify
+
+### New Files
+
+1. `website/models.py` - Add `GitHubSecurityContribution` model
+2. `website/security_signals.py` - Signal handlers for rewards
+3. `website/services/cve_service.py` - NVD API integration
+4. `website/views/security.py` - Verification dashboard view
+5. `website/templates/security/verification_dashboard.html` - Maintainer UI
+6. `website/templates/leaderboard_security.html` - Security leaderboard UI
+7. `website/templates/security/dashboard.html` - User-facing dashboard
+8. `website/static/js/security-dashboard.js` - Client-side interactions
+9. `website/migrations/XXXX_create_github_security_contribution.py` - Database migration
+
+### Modified Files
+
+1. `website/views/user.py` - Extend webhook handlers, add SecurityLeaderboardView
+2. `website/challenge_signals.py` - Add security challenge handlers
+3. `blt/urls.py` - Add security routes
+4. `website/admin.py` - Register new model
+5. `blt/settings.py` - Add NVD API config
+
+### Dependencies
+
+```toml
+[tool.poetry.dependencies]
+nvdlib = "^0.3.0"  # NVD API client
+```
+
+---
+
+## 🚀 Implementation Timeline
+
+### Phase 1: Core Infrastructure (Weeks 1-2)
+
+- Create `GitHubSecurityContribution` model
+- Implement CVE service with NVD API integration
+- Extend webhook handlers for CVE detection
+- Basic NVD API integration and testing
+
+### Phase 2: Verification System (Weeks 3-4)
+
+- Build verification dashboard view
+- Implement verification workflow
+- Add maintainer permissions check
+- Create UI templates with Tailwind CSS
+
+### Phase 3: Rewards & Integration (Weeks 5-6)
+
+- Implement signal handlers
+- Integrate with existing `giveBacon()` function
+- Add badge awards for milestones
+- Challenge system integration
+
+### Phase 4: Leaderboards & Analytics (Weeks 7-8)
+
+- Build security leaderboard view
+- Add analytics dashboard
+- Implement filtering and sorting
+- Performance optimization
+
+### Phase 5: Testing & Documentation (Weeks 9-10)
+
+- Comprehensive test suite
+- Documentation updates
+- Code review and refinement
+- User acceptance testing
+
+### Phase 6: Deployment & Monitoring (Weeks 11-12)
+
+- Production deployment
+- Monitor NVD API usage
+- Track verification metrics
+- Gather user feedback
+
+---
+
+## 🛡️ Security & Fraud Prevention
+
+1. **Rate Limiting**
+
+   - Uses existing middleware (`blt/middleware/throttling.py`)
+   - Prevents spam contribution creation
+
+2. **Verification Requirement**
+
+   - All contributions require maintainer verification
+   - No automatic rewards without verification
+
+3. **CVE Validation**
+
+   - NVD API validates CVE IDs
+   - Invalid CVEs marked as 'Unknown' severity
+   - Maintainer can override during verification
+
+4. **Audit Trail**
+   - Tracks verifier and verification timestamp
+   - Rejection reasons stored
+   - All changes logged
+
+---
+
+## ✅ Success Criteria
+
+1. ✅ CVE detection works for merged PRs
+2. ✅ NVD API integration validates CVEs
+3. ✅ Maintainer verification workflow functional
+4. ✅ BACON rewards awarded correctly (Critical=100, High=75, Medium=50, Low=25)
+5. ✅ Badges awarded for milestones
+6. ✅ Security leaderboard displays correctly
+7. ✅ Challenges track security contributions
+8. ✅ Fraud prevention measures effective
+9. ✅ Performance acceptable (<500ms for verification)
+10. ✅ Documentation complete
+
+---
+
+## 📊 Data Flow Summary
+
+```
+GitHub PR Merge
+    ↓
+Webhook Handler (detects CVE)
+    ↓
+CVE Service (validates via NVD API)
+    ↓
+Create GitHubSecurityContribution (status='pending')
+    ↓
+Verification Dashboard (maintainer reviews)
+    ↓
+Update status to 'verified'
+    ↓
+Django Signal triggers
+    ↓
+giveBacon() awards tokens
+    ↓
+Badge system awards badges
+    ↓
+Challenge system updates progress
+    ↓
+Leaderboard updates rankings
+```
+
+---
+
+## 🎨 UI/UX Considerations
+
+- Uses Tailwind CSS (existing BLT standard)
+- Brand color: `#e74c3c` (red)
+- Responsive design
+- Real-time updates via AJAX
+- Clear verification workflow
+- User-friendly error messages
+
+---
+
+**Note:** This proposal builds entirely on top of existing BLT infrastructure. No existing features are replaced or removed. All new functionality integrates seamlessly with current systems including GitHub webhooks, BACON rewards, badges, challenges, and leaderboards.
