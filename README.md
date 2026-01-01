@@ -2,7 +2,13 @@
 
 ## 🎯 Overview
 
-This proposal adds comprehensive security contribution tracking to BLT, building on top of existing infrastructure without replacing any components. The system automatically detects CVE references in merged PRs, validates them via NVD API, enables maintainer verification, and awards BACON tokens and badges based on severity.
+**GitHub Security Contribution Gamification & Recognition Platform**
+
+Building on: BLT's existing GitHubIssue/GitHubReview/webhook infrastructure, CVE fields, BACON, badges, and daily challenges work (PR #5245).
+
+**Goal:** Track security-focused GitHub PRs/reviews/issues (especially post-disclosure CVE fixes), link them to existing CVE data via NVD API validation, reward contributors with BACON/badges after maintainer verification, and surface impact-based leaderboards, dashboards, and challenges around security work.
+
+**Post-Disclosure Scope:** This system tracks CVE contributions **after public disclosure** (respects responsible disclosure practices). Cannot track private/embargoed security work due to GitHub API limitations (private advisories deprecated May 2024) and ethical disclosure practices. Most CVE work eventually becomes public, making post-disclosure tracking practical and secure.
 
 ---
 
@@ -42,8 +48,9 @@ graph TB
 
     subgraph "Verification Workflow"
         VERIFYVIEW[SecurityContributionVerificationView<br/>NEW VIEW]
-        VERIFIER[Maintainer/Verifier<br/>is_verifier=True]
-        VERIFYSTATUS[verification_status<br/>pending/verified/rejected]
+        VERIFIER[Maintainer/Verifier<br/>can_verify_security_contributions]
+        VERIFYSTATUS[verification_status<br/>pending/verified/rejected/disputed]
+        RATELIMIT[Rate Limiting<br/>5/month per contributor]
     end
 
     subgraph "Reward System (Existing)"
@@ -66,9 +73,9 @@ graph TB
     end
 
     subgraph "Analytics & Security"
-        RATELIMIT[Rate Limiting Middleware<br/>Existing]
-        SPAMDETECT[Spam Detection<br/>NEW]
-        ANALYTICS[Security Analytics Dashboard<br/>NEW VIEW]
+        RATELIMITMW[Rate Limiting Middleware<br/>Existing]
+        SPAMDETECT[Spam Detection<br/>Duplicate Check<br/>Reputation Tracking]
+        ANALYTICS[Security Analytics Dashboard<br/>Chart.js Visualizations<br/>NEW VIEW]
     end
 
     subgraph "UI Components"
@@ -429,16 +436,28 @@ class GitHubSecurityContribution(models.Model):
         choices=[
             ('pending', 'Pending'),
             ('verified', 'Verified'),
-            ('rejected', 'Rejected')
+            ('rejected', 'Rejected'),
+            ('disputed', 'Disputed')
         ],
         default='pending'
     )
+    verification_notes = models.TextField(null=True, blank=True)
+    bacon_awarded = models.BooleanField(default=False)
+    bacon_amount = models.IntegerField(null=True, blank=True)
     verifier = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="verified_security_contributions"
+    )
+    second_verifier = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="second_verified_security_contributions",
+        help_text="Required for CRITICAL/HIGH severity CVEs (if dual verification enabled)"
     )
     verified_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(null=True, blank=True)
@@ -468,11 +487,56 @@ logger = logging.getLogger(__name__)
 CVE_PATTERN = re.compile(r'CVE-\d{4}-\d{4,}', re.IGNORECASE)
 
 def extract_cve_references(text):
-    """Extract CVE IDs from text"""
+    """Extract CVE IDs from text using CVE-\d{4}-\d{4,7} pattern"""
     return CVE_PATTERN.findall(text)
 
+def check_duplicate_contribution(cve_id, contributor, repo):
+    """Check if contributor already claimed this CVE for this repo"""
+    from website.models import GitHubSecurityContribution
+    return GitHubSecurityContribution.objects.filter(
+        cve_id=cve_id,
+        contributor=contributor,
+        repo=repo,
+        verification_status__in=['pending', 'verified']
+    ).exists()
+
+def check_rate_limit(contributor):
+    """Enforce rate limit: Max 5 CVE contribution claims per contributor per month"""
+    from django.utils import timezone
+    from datetime import timedelta
+    from website.models import GitHubSecurityContribution
+    
+    month_ago = timezone.now() - timedelta(days=30)
+    recent_claims = GitHubSecurityContribution.objects.filter(
+        contributor=contributor,
+        created_at__gte=month_ago
+    ).count()
+    
+    return recent_claims < 5
+
+def check_spam_history(contributor):
+    """Check contributor's spam/rejection history"""
+    from website.models import GitHubSecurityContribution
+    
+    rejection_rate = GitHubSecurityContribution.objects.filter(
+        contributor=contributor,
+        verification_status='rejected'
+    ).count() / max(
+        GitHubSecurityContribution.objects.filter(contributor=contributor).count(),
+        1
+    )
+    
+    return rejection_rate < 0.5  # Allow if <50% rejection rate
+
 def validate_cve_and_get_score(cve_id):
-    """Validate CVE ID and fetch severity score from NVD API"""
+    """
+    Validate CVE ID and fetch severity score from NVD API.
+    Pre-screens to block:
+    - Fake CVE IDs (not in NVD)
+    - Documentation-only PRs claiming CVE credit
+    - Duplicate submissions
+    - Contributors with spam history
+    """
     try:
         cve = nvdlib.searchCVE(cveId=cve_id, key=settings.NVD_API_KEY)
         if cve:
@@ -482,16 +546,18 @@ def validate_cve_and_get_score(cve_id):
                 'valid': True,
                 'cve_id': cve_id,
                 'score': cvss_score,
-                'severity': severity
+                'severity': severity,
+                'description': cve[0].descriptions[0].value if cve[0].descriptions else None
             }
     except Exception as e:
         logger.error(f"Error validating CVE {cve_id}: {e}")
-
+    
     return {
         'valid': False,
         'cve_id': cve_id,
         'score': None,
-        'severity': 'Unknown'
+        'severity': 'Unknown',
+        'description': None
     }
 
 def calculate_severity(score):
@@ -582,13 +648,17 @@ from django.utils import timezone
 from ..models import GitHubSecurityContribution
 
 class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMixin, ListView):
-    """Dashboard for maintainers to verify security contributions"""
+    """
+    Dashboard for maintainers to verify security contributions.
+    Shows: CVE details from NVD, PR diff, contributor history.
+    Actions: Verify, Reject, Request More Info, Dispute.
+    """
     model = GitHubSecurityContribution
     template_name = 'security/verification_dashboard.html'
     context_object_name = 'contributions'
-
+    
     def test_func(self):
-        return self.request.user.userprofile.is_verifier
+        return self.request.user.has_perm('website.can_verify_security_contributions')
 
     def get_queryset(self):
         status = self.request.GET.get('status', 'pending')
@@ -606,7 +676,22 @@ class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMix
 
         try:
             contribution = GitHubSecurityContribution.objects.get(id=contribution_id)
-            if action == 'verify':
+            
+            # Check if dual verification required for CRITICAL/HIGH
+            requires_dual_verification = contribution.severity in ['Critical', 'High']
+            if requires_dual_verification and action == 'verify':
+                if not contribution.verifier:
+                    # First verifier
+                    contribution.verifier = request.user
+                    contribution.verification_status = 'pending'  # Still pending until second verifier
+                elif contribution.verifier != request.user:
+                    # Second verifier
+                    contribution.second_verifier = request.user
+                    contribution.verification_status = 'verified'
+                    contribution.verified_at = timezone.now()
+                else:
+                    return JsonResponse({'success': False, 'error': 'Cannot verify your own verification'})
+            elif action == 'verify':
                 contribution.verification_status = 'verified'
                 contribution.verifier = request.user
                 contribution.verified_at = timezone.now()
@@ -615,7 +700,10 @@ class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMix
                 contribution.verifier = request.user
                 contribution.rejection_reason = reason
                 contribution.verified_at = timezone.now()
-
+            elif action == 'dispute':
+                contribution.verification_status = 'disputed'
+                contribution.verification_notes = reason
+            
             contribution.save()
             return JsonResponse({'success': True})
         except Exception as e:
@@ -697,49 +785,66 @@ nvdlib = "^0.3.0"  # NVD API client
 
 ---
 
-## 🚀 Implementation Timeline
+## 🚀 Implementation Timeline (~390h total)
 
-### Phase 1: Core Infrastructure (Weeks 1-2)
+### Milestone 1: CVE Detection & Tracking (70h)
+- Extract CVE IDs from merged PR/issue content using existing `CVE-\d{4}-\d{4,7}` pattern
+- Link to `Issue.cve_id`, store in new `GitHubSecurityContribution` model
+- Wire into `github_webhook` handlers
+- Update `handle_pull_request_event()`, `handle_review_event()`, `handle_issue_event()` to detect CVE references
+- **Post-disclosure scope:** Track CVE contributions after public disclosure (respects responsible disclosure practices)
 
-- Create `GitHubSecurityContribution` model
-- Implement CVE service with NVD API integration
-- Extend webhook handlers for CVE detection
-- Basic NVD API integration and testing
+### Milestone 2: NVD API Validation & Pre-Screening (50h)
+- Integrate `nvdlib` (NIST NVD API wrapper) to validate CVE IDs exist
+- Fetch severity scores (CRITICAL/HIGH/MEDIUM/LOW) and descriptions
+- Pre-screen contributions to block:
+  - Fake CVE IDs
+  - Documentation-only PRs claiming CVE credit
+  - Duplicate submissions
+  - Contributors with spam history
+- Rate limiting: Max 5 CVE contribution claims per contributor per month (Django cache)
 
-### Phase 2: Verification System (Weeks 3-4)
+### Milestone 3: Maintainer Verification Workflow (80h)
+- Build `SecurityContributionVerificationView` admin dashboard for maintainers
+- New model fields: `verification_status`, `verified_by`, `verification_notes`, `second_verifier`
+- Permissions: Add `can_verify_security_contributions` permission
+- Dashboard shows: CVE details from NVD, PR diff, contributor history
+- Actions: Verify, Reject, Request More Info, Dispute
+- Optional: Require 2 maintainers for CRITICAL/HIGH severity CVEs
 
-- Build verification dashboard view
-- Implement verification workflow
-- Add maintainer permissions check
-- Create UI templates with Tailwind CSS
+### Milestone 4: Reward Distribution (40h)
+- Use `giveBacon()` from `feed_signals.py` so verified CVE-fix PRs auto-earn BACON
+- Scaled by severity: Critical=100, High=75, Medium=50, Low=25
+- Security badges via existing `Badge`/`UserBadge` models
+- Reward gating: BACON only awarded after maintainer verification (via Django signal)
+- Tracks `bacon_awarded` and `bacon_amount` fields
 
-### Phase 3: Rewards & Integration (Weeks 5-6)
+### Milestone 5: Security Leaderboards (50h)
+- Build leaderboards extending `LeaderboardBase`
+- Rank by impact (`cve_score × contribution count`)
+- Separate views for PRs, reviews, and security issues
+- Time-period filtering (monthly, yearly, all-time)
+- Contributor reputation metrics
 
-- Implement signal handlers
-- Integrate with existing `giveBacon()` function
-- Add badge awards for milestones
-- Challenge system integration
+### Milestone 6: Security Daily Challenges (40h)
+- Add GitHub security challenge types to `DailyChallenge.CHALLENGE_TYPE_CHOICES` (from PR #5245)
+- Extend `check_and_complete_challenges()` to validate via `GitHubSecurityContribution`
+- Examples: "Fix a MEDIUM+ CVE this week", "Review 3 security PRs"
 
-### Phase 4: Leaderboards & Analytics (Weeks 7-8)
+### Milestone 7: Security Dashboard UI (60h)
+- Create accessible, dark-mode `SecurityContributionDashboardView`
+- Shows contributions, badges, verification status, timelines, impact metrics
+- Reuse ARIA/dark-mode patterns from PRs #4937 and #5169
+- Charts for CVE trends (Chart.js), severity distribution, top contributors
 
-- Build security leaderboard view
-- Add analytics dashboard
-- Implement filtering and sorting
-- Performance optimization
-
-### Phase 5: Testing & Documentation (Weeks 9-10)
-
-- Comprehensive test suite
-- Documentation updates
-- Code review and refinement
-- User acceptance testing
-
-### Phase 6: Deployment & Monitoring (Weeks 11-12)
-
-- Production deployment
-- Monitor NVD API usage
-- Track verification metrics
-- Gather user feedback
+### Milestone 8: Analytics, Tests & Docs (70h)
+- `SecurityAnalyticsView` with Django ORM aggregations for CVE fixes over time
+- Top contributors/orgs analytics
+- End-to-end tests extending `test_github_webhook.py`
+- Fraud scenario tests: Fake CVEs, duplicate submissions, trivial PRs, rate limit violations
+- Maintainer verification guide
+- Contributor CVE claiming guide
+- Security audit of verification logic
 
 ---
 
@@ -783,24 +888,63 @@ nvdlib = "^0.3.0"  # NVD API client
 
 ---
 
+## 📊 Scope & Limitations
+
+### What This Tracks ✅
+
+- ✅ Publicly disclosed CVE fixes (post-disclosure only)
+- ✅ Merged PRs with CVE references
+- ✅ Published GitHub Security Advisories
+- ✅ Security reviews and security-labeled issues
+- ✅ Security-labeled PRs (if GitHub provides labels)
+
+### What This Doesn't Track ❌
+
+- ❌ Private/embargoed CVE work (respects responsible disclosure)
+- ❌ Unpublished security advisories
+- ❌ Pre-disclosure contributions
+
+**Why Post-Disclosure?** 
+- **Ethical:** Respects responsible disclosure practices
+- **Secure:** No premature vulnerability leaks
+- **Practical:** Most CVE work eventually becomes public
+- **API Limitation:** GitHub deprecated private advisory access (May 2024)
+
+### Alternative Scope (If Needed)
+
+If CVE scope is insufficient, can pivot to tracking:
+- Dependabot security PRs
+- CodeQL security findings
+- Security-labeled PRs/issues
+- Security review contributions
+
 ## 📊 Data Flow Summary
 
 ```
-GitHub PR Merge
+GitHub PR Merge (with CVE reference)
     ↓
-Webhook Handler (detects CVE)
+Webhook Handler (detects CVE pattern)
+    ↓
+Pre-Screening:
+  - Check rate limit (5/month)
+  - Check duplicate submission
+  - Check spam history
     ↓
 CVE Service (validates via NVD API)
     ↓
 Create GitHubSecurityContribution (status='pending')
     ↓
 Verification Dashboard (maintainer reviews)
+  - Shows CVE details from NVD
+  - Shows PR diff
+  - Shows contributor history
     ↓
-Update status to 'verified'
+Update status to 'verified' (or 'rejected'/'disputed')
+  - Dual verification for CRITICAL/HIGH (optional)
     ↓
-Django Signal triggers
+Django Signal triggers (only if verified)
     ↓
-giveBacon() awards tokens
+giveBacon() awards tokens (Critical=100, High=75, Medium=50, Low=25)
     ↓
 Badge system awards badges
     ↓
@@ -815,11 +959,56 @@ Leaderboard updates rankings
 
 - Uses Tailwind CSS (existing BLT standard)
 - Brand color: `#e74c3c` (red)
-- Responsive design
+- Responsive design with dark-mode support
 - Real-time updates via AJAX
 - Clear verification workflow
 - User-friendly error messages
+- Chart.js visualizations for CVE trends, severity distribution
+- Accessible design (ARIA patterns from PRs #4937 and #5169)
+- Security dashboard shows:
+  - Contributions timeline
+  - Badges earned
+  - Verification status
+  - Impact metrics
+  - CVE trends charts
+  - Top contributors visualization
 
 ---
+
+## ❓ Questions for Mentors
+
+Before finalizing implementation, I need guidance on:
+
+1. **Tracking Scope:** Is post-disclosure CVE tracking acceptable? (Cannot track private/embargoed work due to GitHub API limitations and ethical disclosure practices.) Alternative: Pivot to tracking Dependabot/CodeQL/security-labeled PRs if CVE scope insufficient.
+
+2. **Verification Permissions:** Who should have `can_verify_security_contributions` permission? (All maintainers vs. security team only)
+
+3. **Approval Policy:** Require 2 maintainers for CRITICAL/HIGH severity CVEs? (Currently implemented as optional dual verification)
+
+4. **Reward Amounts:** Are proposed BACON amounts appropriate? (CRITICAL=100, HIGH=75, MEDIUM=50, LOW=25)
+
+## 🎁 Bonus: MY-GSOC-TOOL Integration
+
+Since we're tracking security contribution data, it could connect to MY-GSOC-TOOL—students could showcase security PRs in GSoC portfolios. Not core scope, but easy to add a REST API endpoint later:
+
+```python
+# website/api/views.py
+class SecurityContributionAPIView(APIView):
+    """REST API endpoint for MY-GSOC-TOOL integration"""
+    def get(self, request, contributor_id):
+        contributions = GitHubSecurityContribution.objects.filter(
+            contributor_id=contributor_id,
+            verification_status='verified'
+        ).values('cve_id', 'severity', 'created_at', 'repo__name')
+        return Response(contributions)
+```
+
+## 📚 Related Work
+
+- **PR #5057:** CVE Search, Filtering, Caching, Autocomplete (Open) – proves CVE system understanding
+- **PR #5245:** Daily Challenges with 24-Hour Reset (Open) – gamification infrastructure
+- **PR #5371:** Security Headers & CSRF (Open) – security expertise
+- **PR #5351:** Session Security, Rate Limiting (Open) – anti-fraud experience
+- **PR #5023:** Console.log removal (Merged) ✅
 
 **Note:** This proposal builds entirely on top of existing BLT infrastructure. No existing features are replaced or removed. All new functionality integrates seamlessly with current systems including GitHub webhooks, BACON rewards, badges, challenges, and leaderboards.
