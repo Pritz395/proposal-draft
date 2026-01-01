@@ -181,10 +181,12 @@ erDiagram
 
     Contributor {
         int id PK
-        bigint github_id UK
+        int github_id UK
         string name
         string github_url
     }
+    
+    Note: github_id is currently IntegerField, but should be BigIntegerField for GitHub IDs > 2^31
 
     Repo {
         int id PK
@@ -218,6 +220,8 @@ erDiagram
         string cve_id
         decimal cve_score
     }
+    
+    Note: Issue.cve_score currently has max_digits=2, needs migration to max_digits=3 for CVSS scores up to 10.0
 
     GitHubSecurityContribution {
         int id PK
@@ -480,7 +484,7 @@ logger = logging.getLogger(__name__)
 CVE_PATTERN = re.compile(r'CVE-\d{4}-\d{4,}', re.IGNORECASE)
 
 def extract_cve_references(text):
-    """Extract CVE IDs from text using CVE-\d{4}-\d{4,7} pattern"""
+    """Extract CVE IDs from text using CVE-\d{4}-\d{4,7} regex pattern (to be created)"""
     return CVE_PATTERN.findall(text)
 
 def check_duplicate_contribution(cve_id, contributor, repo):
@@ -691,6 +695,33 @@ class SecurityContributionVerificationView(LoginRequiredMixin, UserPassesTestMix
 
 ---
 
+## Database Changes Required
+
+### Migration 1: Fix Issue.cve_score Field Constraint
+
+**Current:** `Issue.cve_score = models.DecimalField(max_digits=2, decimal_places=1)`  
+**Problem:** Max value is 9.9, but CVSS scores go up to 10.0  
+**Fix:** Change to `max_digits=3, decimal_places=1` to support scores 0.0-10.0
+
+```python
+# Migration needed in website/migrations/
+class Migration(migrations.Migration):
+    operations = [
+        migrations.AlterField(
+            model_name='issue',
+            name='cve_score',
+            field=models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True),
+        ),
+    ]
+```
+
+### Migration 2: Contributor.github_id Field Type (Optional)
+
+**Current:** `Contributor.github_id = models.IntegerField()`  
+**Note:** GitHub user IDs can exceed 32-bit integer limits (2^31). Consider migrating to `BigIntegerField` if needed for future-proofing, though current IntegerField works for most cases.
+
+---
+
 ## Files to Create/Modify
 
 ### New Files
@@ -726,7 +757,8 @@ nvdlib = "^0.3.0"  # NVD API client
 
 ### Milestone 1: CVE Detection & Tracking (70h)
 
-- Extract CVE IDs from merged PR/issue content using existing `CVE-\d{4}-\d{4,7}` pattern
+- Extract CVE IDs from merged PR/issue content using `CVE-\d{4}-\d{4,7}` regex pattern (to be created)
+- Create CVE regex pattern utility function
 - Link to `Issue.cve_id`, store in new `GitHubSecurityContribution` model
 - Wire into `github_webhook` handlers
 - Update `handle_pull_request_event()`, `handle_review_event()`, `handle_issue_event()` to detect CVE references
@@ -769,8 +801,8 @@ nvdlib = "^0.3.0"  # NVD API client
 
 ### Milestone 6: Security Daily Challenges (40h)
 
-- Add GitHub security challenge types to `DailyChallenge.CHALLENGE_TYPE_CHOICES` (from PR #5245)
-- Extend `check_and_complete_challenges()` to validate via `GitHubSecurityContribution`
+- Add GitHub security challenge types to `Challenge.CHALLENGE_TYPE_CHOICES` (depends on PR #5245 being merged first)
+- Extend `update_challenge_progress()` to validate via `GitHubSecurityContribution`
 - Examples: "Fix a MEDIUM+ CVE this week", "Review 3 security PRs"
 
 ### Milestone 7: Security Dashboard UI (60h)
