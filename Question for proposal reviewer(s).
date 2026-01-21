@@ -1,5 +1,0 @@
-If CVE scope is insufficient, can we pivot the project to tracking:
-- Dependabot security PRs
-- CodeQL security findings
-- Security-labeled PRs/issues
-- Security review contributions ? 
