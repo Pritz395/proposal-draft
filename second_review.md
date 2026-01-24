@@ -94,7 +94,7 @@ All new views will follow BLT’s existing design patterns:
 - Meet accessibility expectations (WCAG 2.1 AA where applicable).
 
 ## Notes
-The project descriptions below provide a general overview of each milestone's scope. We'll finalize detailed, fact-checked deliverables (similar to those created for the first review) once we've selected 1–2 project proposals to pursue for GSoC.
+The project descriptions below provide a general overview of each milestone's scope. I'll finalize detailed, fact-checked deliverables (similar to those created for the first review) once I've personally selected 1–2 project proposals to pursue for GSoC.
 
 <br>
 <br>
