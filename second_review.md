@@ -12,7 +12,7 @@ The community direction is remediation-first: find unpatched vulnerabilities, no
 
 **Alternate foundation-first path:** If mentors want to establish the pipeline first, **Project A** is the best starting point because it creates the verified contribution signal for downstream rewards and education.
 
-**Personal interest:** I am most interested in **Project B**, with **light C** as a minimal add-on if time permits. Project B is the core (rewards, leaderboards, ranking around CVEs), and B + light C is still in-scope if light C is strictly limited to a couple of read-only endpoints or a simple webhook that expose existing B outputs. That keeps the work aligned with what maintainers care about while adding a small bridge value.
+**Personal interest:** I am most interested in **Project B + light C** as a single 350-hour project. The core rewards/leaderboards infrastructure (B) is my primary focus, with light C providing a minimal education bridge through read-only APIs or a simple webhook that expose existing B outputs. This keeps the scope aligned with what maintainers care about while adding a small bridge value without content creation overhead.
 
 ## Community Discussion Summary (Discussion #5495)
 ### Key themes
@@ -59,6 +59,12 @@ D | Knowledge sharing | OSS ecosystem | Aggregated data + governance | Medium (p
 - **Immediate contributor engagement:** choose **Project B + light C**.
 - **Strong education/content team available:** consider **Project C + D**.
 - **Foundational pipeline needed first:** prioritize **Project A**.
+
+## UI/UX consistency
+All new views will follow BLT’s existing design patterns:
+- Use the existing CSS framework and component patterns.
+- Integrate with current navigation and authentication flows.
+- Meet accessibility expectations (WCAG 2.1 AA where applicable).
 
 ## Notes
 The project descriptions below provide a general overview of each milestone's scope. We'll finalize detailed, fact-checked deliverables (similar to those created for the first review) once we've selected 1–2 project proposals to pursue for GSoC.
@@ -158,6 +164,21 @@ It is strictly **post‑disclosure**: it only tracks contributions to already pu
   - On verification:
     - Emit a Django signal (internal consumers).
     - Optionally emit a webhook event (future external consumers, e.g., rewards/education).
+
+## Technical integration points
+- Add `GitHubSecurityContribution` to `website/models.py` (or a new `website/security/models.py` module if we split security code).
+- Extend GitHub webhook handlers in `website/views/user.py` for PR/review events.
+- Add CVE/NVD logic in `website/services/cve_service.py` (or `website/services/nvd_client.py`).
+- Add verification dashboard in `website/views/security.py` with templates under `website/templates/security/`.
+- Register routes in `blt/urls.py` (or existing API routing module).
+
+## API design (Project A)
+- **Authentication:** Django session + CSRF for web; token-based auth for external consumers.
+- **Base path:** `/api/v1/security-contributions/`.
+- **Pagination:** PageNumberPagination (default 25 per page).
+- **Rate limiting:** 100 requests/hour per user (via existing throttling middleware or `django-ratelimit`).
+- **Filtering:** status, repo, severity, contributor via FilterBackend.
+- **Errors:** consistent JSON error shape with `code`, `detail`, and `field_errors`.
 
 ---
 
@@ -299,6 +320,10 @@ It is strictly **post‑disclosure**: it only tracks contributions to already pu
 - Median advisory/merge → maintainer verification time (target: < 72 hours).
 - Unit/integration test coverage for the GHSC module.
 
+## Metrics measurement
+- **During GSoC pilot:** manual tracking in a shared sheet; target N ≥ 10 verified contributions.
+- **Post‑GSoC:** automate via admin analytics and system metrics.
+
 ---
 
 ## Risks & mitigations
@@ -388,6 +413,21 @@ This project implements the **“Project B” layer**: it does **not** do detect
   - Simple heuristics (and manual review) to spot:
     - Repetitive trivial changes,
     - Suspicious claim patterns.
+
+## Technical integration points
+- Hook rewards into `website/feed_signals.py` (`giveBacon()`), with an auditable payout ledger model in `website/models.py`.
+- Extend `website/challenge_signals.py` for security challenge progress updates.
+- Add `SecurityLeaderboardView` in `website/views/leaderboard.py` (or `website/views/user.py` if that’s the current pattern).
+- Add API endpoints in `website/api/` or existing API module and route them in `blt/urls.py`.
+- Add admin audit views in `website/admin.py` and templates under `website/templates/security/`.
+
+## API design (Project B)
+- **Authentication:** Django session + CSRF for web; token-based auth for external consumers.
+- **Base path:** `/api/v1/security-leaderboard/` and `/api/v1/security-rewards/`.
+- **Pagination:** PageNumberPagination (default 25 per page).
+- **Rate limiting:** 100 requests/hour per user (aligned with existing throttling).
+- **Filtering:** time range, severity, repo, contributor.
+- **Errors:** consistent JSON error shape with `code`, `detail`, and `field_errors`.
 
 ---
 
@@ -563,6 +603,18 @@ Build a structured security education platform with tiered learning tracks, hand
 - Badge-based unlock integration.
 - Documentation and pilot report.
 
+## Technical approach (standalone)
+- Extend existing Course/Lecture concepts or create a dedicated `education` app.
+- Build lab content as structured markdown + metadata with sandboxed exercises.
+- Implement auto-quiz grading and an instructor review queue.
+- Integrate badge/leaderboard checks for gated access (read-only).
+
+## Milestone outline (standalone)
+- **Weeks 0–2:** scaffold + first lab + quiz.
+- **Weeks 3–6:** auto-grading + review queue + 3–5 labs.
+- **Weeks 7–10:** instructor tooling + badge-based unlocks.
+- **Weeks 11–12:** pilot run + documentation + improvements.
+
 ## Pros
 - Structured onboarding path for new security contributors.
 - Clear progression from beginner to trusted contributor.
@@ -615,6 +667,17 @@ Create an anonymized data pipeline and public-facing insights (dashboards, repor
 - Automated report generation.
 - Playbook library with governance workflow.
 - Documentation on redaction policies.
+
+## Technical approach (standalone)
+- Build an aggregation pipeline to transform BLT data into safe, anonymized metrics.
+- Render dashboards with existing chart tooling and exportable reports.
+- Create a playbook authoring template with a two-person approval workflow.
+
+## Milestone outline (standalone)
+- **Weeks 0–2:** aggregation schema + anonymization rules.
+- **Weeks 3–6:** dashboards + report generator MVP.
+- **Weeks 7–10:** playbook templates + approval workflow.
+- **Weeks 11–12:** pilot report + documentation + refinements.
 
 ## Pros
 - Broad community impact via safe public insights.
@@ -1164,6 +1227,13 @@ This project assumes BLT already has a way to track verified security contributi
 
 ---
 
+## Testing Strategy (All Projects)
+- **Unit tests:** target 85%+ coverage using pytest-django where applicable.
+- **Integration tests:** critical workflows (e.g., PR merge → GHSC → verify → reward → leaderboard).
+- **E2E tests:** key user flows using Playwright (verification dashboard, leaderboards).
+- **Fixtures:** reusable fixtures for CVEs, PRs, users, and verification events.
+- **CI:** GitHub Actions running tests on every PR.
+
 ## Quality control mechanisms
 - **Multi-tier review for BACON rewards**
   - Automated checks followed by mentor approval.
@@ -1190,6 +1260,13 @@ This project assumes BLT already has a way to track verified security contributi
 - What is the right notification strategy and maintainer consent model for proactive scanning?
 - What is the minimum viable Buttercup (or equivalent) evaluation required for Project C?
 - BACON on-chain distribution depends on Bitcoin mainnet sync completion (currently ~90%).
+
+## Technical clarifications (current assumptions)
+- **GHSC vs Issue/Bug models:** GHSC coexists with existing Issue/Bug models and links to them; it does not replace them.
+- **BACON mainnet sync:** reward issuance can be logged off-chain during pilot; on-chain payouts follow once mainnet sync is complete.
+- **Verification dashboard placement:** new `website/views/security.py` with templates under `website/templates/security/`.
+- **Leaderboards:** security leaderboard is a new severity-weighted view extending existing leaderboard patterns; it does not replace global leaderboards.
+- **Disputes/clawbacks:** disputed or revoked GHSC entries trigger a reversal record in the payout ledger and a leaderboard recompute.
 
 ## Documentation cross-references
 - `docs/features.md` for current capability descriptions.
