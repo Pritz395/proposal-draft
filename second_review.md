@@ -13,19 +13,18 @@
 10. [Notes](#notes)
 11. **Project A** — [CVE Detection & Validation Pipeline](#project-a--cve-detection--validation-pipeline-350-hours)
 12. **Project B** — [Security Contribution Gamification & Recognition](#project-b--security-contribution-gamification--recognition-350-hours)
-13. **Project C** — [blt-education Platform (standalone)](#project-c--blt-education-platform-350-hours-standalone)
-14. **Project D** — [Knowledge Sharing & Community Impact (standalone)](#project-d--knowledge-sharing--community-impact-350-hours-standalone)
-15. [Why Standalone C or D Alone May Not Be Ideal](#why-standalone-c-or-d-alone-may-not-be-ideal)
-16. [Why Combining A + B Is Impractical](#why-combining-project-a--project-b-into-one-350hour-project-is-impractical)
-17. **Preferred: B + light C** — [Security Rewards & Education Bridge](#alternative-preferred--project-b--light-c-single-350hour-project)
-18. [Decoupling Project B from Project A](#decoupling-project-b-from-project-a-parallel-development)
+13. [Decoupling Project B from Project A](#decoupling-project-b-from-project-a-parallel-development)
+14. **Project C** — [blt-education Platform (standalone)](#project-c--blt-education-platform-350-hours-standalone)
+15. **Project D** — [Knowledge Sharing & Community Impact (standalone)](#project-d--knowledge-sharing--community-impact-350-hours-standalone)
+16. [Why Standalone C or D Alone May Not Be Ideal](#why-standalone-c-or-d-alone-may-not-be-ideal)
+17. [Why Combining A + B Is Impractical](#why-combining-project-a--project-b-into-one-350hour-project-is-impractical)
+18. **Preferred: B + light C** — [Security Rewards & Education Bridge](#alternative-preferred--project-b--light-c-single-350hour-project)
 19. **Combined C + D** — [blt-education + Knowledge Sharing](#combined-project-c--d-single-350hour-project)
 20. [Testing Strategy (All Projects)](#testing-strategy-all-projects)
-21. [Quality control mechanisms](#quality-control-mechanisms)
-22. [Scope boundaries and open questions](#scope-boundaries-and-open-questions)
-23. [Technical clarifications](#technical-clarifications-current-assumptions)
-24. [Communication & Progress Tracking](#communication--progress-tracking)
-25. [Documentation cross-references](#documentation-cross-references)
+21. [Governance & Controls](#governance--controls)
+22. [Technical clarifications](#technical-clarifications-current-assumptions)
+23. [Communication & Progress Tracking](#communication--progress-tracking)
+24. [Documentation cross-references](#documentation-cross-references)
 
 ---
 
@@ -617,6 +616,68 @@ This project implements the **“Project B” layer**: it does **not** do detect
 <br>
 
 ────────────────────────────────────────────────────────────
+Decoupling Project B from Project A (Parallel Development)
+────────────────────────────────────────────────────────────
+
+To keep Project B fully viable as an independent GSoC project (and allow it to run in parallel with Project A), I will design it around a generic **VerifiedSecurityContribution** event schema instead of a concrete GHSC model.
+
+**Abstract event schema**
+
+Project B will consume a simple, abstract event type:
+
+- `id`
+- `user_id`
+- `severity`
+- `cve_id` (optional)
+- `repo`
+- `verified_at`
+- `source` (e.g., "manual", "scanner", "GHSC")
+
+Any system that can emit events in this shape can drive Project B. Project A (GHSC pipeline) is **one possible producer**, but not the only one.
+
+**Event adapter inside Project B**
+
+Project B will include a thin "event adapter" that:
+
+- Accepts `VerifiedSecurityContribution` payloads (from DB, signals, webhooks, or fixtures),
+- Normalizes them to B's internal representation,
+- Triggers rewards, badges, leaderboards, and challenge updates.
+
+For GSoC, this adapter will read from:
+
+- Fixtures (seeded verified contributions),
+- A minimal `VerifiedSecurityContribution` table,
+- Or a small admin UI where mentors can manually mark contributions as verified.
+
+**Fixtures and admin tools as initial source**
+
+During GSoC, Project B does **not** require GHSC or Project A to be finished:
+
+- I will seed the database with fixture "verified contributions", and/or
+- Provide a simple admin form: "Create verified security contribution".
+
+All milestones and demos for B will use these contributions to:
+
+- Trigger reward handlers,
+- Update leaderboards and challenges,
+- Drive analytics and admin views.
+
+**A → B integration as an optional add‑on**
+
+In the proposal and implementation, I will explicitly treat A→B integration as **optional**:
+
+> During GSoC, I will implement Project B against a generic `VerifiedSecurityContribution` feed (fixtures/admin UI/minimal table). If Project A's GHSC pipeline is available, I will add a thin adapter that maps GHSC → `VerifiedSecurityContribution`, but that integration is optional and can land late or after GSoC.
+
+This design ensures:
+
+- Project B is fully demo‑able with synthetic or manually created verified contributions.
+- Projects A and B can be developed **in parallel by different students**.
+- After GSoC, maintainers can plug A's GHSC events into B's adapter without changing B's core logic.
+
+<br>
+<br>
+
+────────────────────────────────────────────────────────────
 Project C — blt-education Platform (350 hours, standalone)
 ────────────────────────────────────────────────────────────
 
@@ -1008,71 +1069,6 @@ The education bridge here is **infrastructure only**: it enables education teams
   - Education endpoints only expose badge/leaderboard data.
   - No raw vulnerability descriptions or exploit content.
 
-<br>
-<br>
-
-────────────────────────────────────────────────────────────
-Decoupling Project B from Project A (Parallel Development)
-────────────────────────────────────────────────────────────
-
-To keep Project B fully viable as an independent GSoC project (and allow it to run in parallel with Project A), I will design it around a generic **VerifiedSecurityContribution** event schema instead of a concrete GHSC model.
-
-**Abstract event schema**
-
-Project B will consume a simple, abstract event type:
-
-- `id`
-- `user_id`
-- `severity`
-- `cve_id` (optional)
-- `repo`
-- `verified_at`
-- `source` (e.g., “manual”, “scanner”, “GHSC”)
-
-Any system that can emit events in this shape can drive Project B. Project A (GHSC pipeline) is **one possible producer**, but not the only one.
-
-**Event adapter inside Project B**
-
-Project B will include a thin “event adapter” that:
-
-- Accepts `VerifiedSecurityContribution` payloads (from DB, signals, webhooks, or fixtures),
-- Normalizes them to B’s internal representation,
-- Triggers rewards, badges, leaderboards, and challenge updates.
-
-For GSoC, this adapter will read from:
-
-- Fixtures (seeded verified contributions),
-- A minimal `VerifiedSecurityContribution` table,
-- Or a small admin UI where mentors can manually mark contributions as verified.
-
-**Fixtures and admin tools as initial source**
-
-During GSoC, Project B does **not** require GHSC or Project A to be finished:
-
-- I will seed the database with fixture “verified contributions”, and/or
-- Provide a simple admin form: “Create verified security contribution”.
-
-All milestones and demos for B will use these contributions to:
-
-- Trigger reward handlers,
-- Update leaderboards and challenges,
-- Drive analytics and admin views.
-
-**A → B integration as an optional add‑on**
-
-In the proposal and implementation, I will explicitly treat A→B integration as **optional**:
-
-> During GSoC, I will implement Project B against a generic `VerifiedSecurityContribution` feed (fixtures/admin UI/minimal table). If Project A’s GHSC pipeline is available, I will add a thin adapter that maps GHSC → `VerifiedSecurityContribution`, but that integration is optional and can land late or after GSoC.
-
-This design ensures:
-
-- Project B is fully demo‑able with synthetic or manually created verified contributions.
-- Projects A and B can be developed **in parallel by different students**.
-- After GSoC, maintainers can plug A’s GHSC events into B’s adapter without changing B’s core logic.
-
-<br>
-<br>
-
 ────────────────────────────────────────────────────────────
 Combined Project C + D (Single 350‑Hour Project)
 blt‑education + Knowledge Sharing & Community Impact
@@ -1259,7 +1255,9 @@ This project assumes BLT already has a way to track verified security contributi
 - **Fixtures:** reusable fixtures for CVEs, PRs, users, and verification events.
 - **CI:** GitHub Actions running tests on every PR.
 
-## Quality control mechanisms
+## Governance & Controls
+
+### Quality control mechanisms
 - **Multi-tier review for BACON rewards**
   - Automated checks followed by mentor approval.
   - Build on the existing `BaconSubmission` workflow.
@@ -1274,7 +1272,6 @@ This project assumes BLT already has a way to track verified security contributi
   - Reward sustained quality over volume.
   - Weight rewards by verified severity.
 
-## Scope boundaries and open questions
 ### Scope boundaries
 - Initial focus on open-source repositories (not closed-source/enterprise).
 - No automated exploit disclosure or storage of private advisory content.
