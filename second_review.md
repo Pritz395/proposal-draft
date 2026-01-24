@@ -23,8 +23,6 @@
 20. [Testing Strategy (All Projects)](#testing-strategy-all-projects)
 21. [Governance & Controls](#governance--controls)
 22. [Technical clarifications](#technical-clarifications-current-assumptions)
-23. [Communication & Progress Tracking](#communication--progress-tracking)
-24. [Documentation cross-references](#documentation-cross-references)
 
 ---
 
@@ -1447,14 +1445,3 @@ This project assumes BLT already has a way to track verified security contributi
 - **Leaderboards:** security leaderboard is a new severity-weighted view extending existing leaderboard patterns; it does not replace global leaderboards.
 - **Disputes/clawbacks:** disputed or revoked GHSC entries trigger a reversal record in the payout ledger and a leaderboard recompute.
 
-## Communication & Progress Tracking
-- **Weekly sync meetings:** 30–60 minutes with mentor(s) to discuss blockers and next steps.
-- **Bi-weekly blog posts:** Public progress updates on BLT blog or GitHub Discussions.
-- **Daily async updates:** Brief status in Slack/Discord (what I did, what's next, any blockers).
-- **Milestone demos:** Live demos at weeks 4, 7, 10, 12 (midterm checkpoints and final).
-
-## Documentation cross-references
-- `docs/features.md` for current capability descriptions.
-- `docs/architecture.md` for technical foundation context.
-- `BACON/BLT BTC Runes documentation .md` for blockchain reward details.
-- `docs/feature-checklist.md` for implementation status tracking.
