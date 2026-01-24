@@ -1,7 +1,7 @@
 ```mermaid
 graph TD
     A[Step 1: Proposed initial idea - First Review - COMPLETED ✅]
-    B[Step 2: Refined scope via forum discussion - Second Review - IN PROGRESS 🔄]
+    B[Step 2: Refined scope via forum discussion - Second Review - UNDER REVIEW 🔍]
     C[Step 3: Map complete end-to-end deliverables - TO BE DONE ⭕]
     
     A --> B
