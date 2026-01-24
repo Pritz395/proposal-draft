@@ -1,5 +1,32 @@
 # Second Review — Strategic Options & Project Portfolio
 
+## Table of Contents
+1. [Purpose and scope](#purpose-and-scope)
+2. [Executive summary](#executive-summary)
+3. [Community Discussion Summary](#community-discussion-summary-discussion-5495)
+4. [Strategic Direction (2025-2026)](#strategic-direction-2025-2026)
+5. [Project options overview](#project-options-overview-a--b--c--d)
+6. [Differentiation at a glance](#differentiation-at-a-glance)
+7. [Decision guide](#decision-guide)
+8. [UI/UX consistency](#uiux-consistency)
+9. [Notes](#notes)
+10. **Project A** — [CVE Detection & Validation Pipeline](#project-a--cve-detection--validation-pipeline-350-hours)
+11. **Project B** — [Security Contribution Gamification & Recognition](#project-b--security-contribution-gamification--recognition-350-hours)
+12. **Project C** — [blt-education Platform (standalone)](#project-c--blt-education-platform-350-hours-standalone)
+13. **Project D** — [Knowledge Sharing & Community Impact (standalone)](#project-d--knowledge-sharing--community-impact-350-hours-standalone)
+14. [Why Standalone C or D Alone May Not Be Ideal](#why-standalone-c-or-d-alone-may-not-be-ideal)
+15. [Why Combining A + B Is Impractical](#why-combining-project-a--project-b-into-one-350hour-project-is-impractical)
+16. **Preferred: B + light C** — [Security Rewards & Education Bridge](#alternative-preferred--project-b--light-c-single-350hour-project)
+17. [Decoupling Project B from Project A](#decoupling-project-b-from-project-a-parallel-development)
+18. **Combined C + D** — [blt-education + Knowledge Sharing](#combined-project-c--d-single-350hour-project)
+19. [Testing Strategy (All Projects)](#testing-strategy-all-projects)
+20. [Quality control mechanisms](#quality-control-mechanisms)
+21. [Scope boundaries and open questions](#scope-boundaries-and-open-questions)
+22. [Technical clarifications](#technical-clarifications-current-assumptions)
+23. [Documentation cross-references](#documentation-cross-references)
+
+---
+
 ## Purpose and scope
 This document synthesizes community input from GitHub Discussion #5495 and defines a strategic direction for BLT in 2025-2026. It outlines a portfolio of four potential GSoC projects (A-D), their tradeoffs, and how they integrate with existing infrastructure.
 
@@ -69,7 +96,6 @@ All new views will follow BLT’s existing design patterns:
 ## Notes
 The project descriptions below provide a general overview of each milestone's scope. We'll finalize detailed, fact-checked deliverables (similar to those created for the first review) once we've selected 1–2 project proposals to pursue for GSoC.
 
-<br>
 <br>
 <br>
 
@@ -333,9 +359,7 @@ It is strictly **post‑disclosure**: it only tracks contributions to already pu
 - **Privacy / exploit leakage**: store only public, non‑sensitive fields; never store exploit payloads or private advisory content.
 
 ---
-<br>
-<br>
-<br>
+
 <br>
 <br>
 
@@ -571,9 +595,6 @@ This project implements the **“Project B” layer**: it does **not** do detect
 
 <br>
 <br>
-<br>
-<br>
-<br>
 
 ────────────────────────────────────────────────────────────
 Project C — blt-education Platform (350 hours, standalone)
@@ -635,9 +656,7 @@ Build a structured security education platform with tiered learning tracks, hand
 - Shared knowledge base that improves security literacy over time.
 
 ---
-<br>
-<br>
-<br>
+
 <br>
 <br>
 
@@ -699,9 +718,7 @@ Create an anonymized data pipeline and public-facing insights (dashboards, repor
 - A trusted playbook library that scales remediation patterns.
 
 ---
-<br>
-<br>
-<br>
+
 <br>
 <br>
 
@@ -719,9 +736,6 @@ Why Standalone C or D Alone May Not Be Ideal
 - Publishing workflows can be under-utilized without active contribution pipelines.
 - Privacy/governance overhead without immediate contribution impact.
 
-<br>
-<br>
-<br>
 <br>
 <br>
 
@@ -816,9 +830,6 @@ Even under this constrained MVP, much of the fraud prevention, governance, and p
 
 For these reasons, the recommended plan is to **treat A and B as two separate 350‑hour projects**, each with its own milestones, tests, and pilot.
 
-<br>
-<br>
-<br>
 <br>
 <br>
 
@@ -979,9 +990,6 @@ The education bridge here is **infrastructure only**: it enables education teams
 
 <br>
 <br>
-<br>
-<br>
-<br>
 
 ────────────────────────────────────────────────────────────
 Decoupling Project B from Project A (Parallel Development)
@@ -1042,9 +1050,6 @@ This design ensures:
 - Projects A and B can be developed **in parallel by different students**.
 - After GSoC, maintainers can plug A’s GHSC events into B’s adapter without changing B’s core logic.
 
-<br>
-<br>
-<br>
 <br>
 <br>
 
