@@ -369,6 +369,29 @@ It is strictly **post‑disclosure**: it only tracks contributions to already pu
 
 ---
 
+## Minimum Viable Scope (if behind schedule)
+
+**Guaranteed minimum deliverables:**
+- `GitHubSecurityContribution` model with all core fields (cve_id, repo, pr_url, contributor, severity, status) ✓
+- Database migrations and admin interface ✓
+- CVE extractor function with regex pattern matching and tests ✓
+- GitHub webhook handler for `pull_request.closed` events ✓
+- Basic verification dashboard (list view + verify/reject actions) ✓
+- REST API endpoints: `GET /api/v1/security-contributions/` and `PATCH /api/v1/security-contributions/<id>/verify` ✓
+- NVD validation with fixture-based caching (no live API during pilot) ✓
+- Unit tests achieving 80%+ coverage ✓
+- Basic documentation (README, API docs) ✓
+
+**Stretch goals (may be deferred post-GSoC):**
+- Buttercup scanner integration (fallback: use GitHub Advisory API + Dependabot alerts)
+- Advanced duplicate detection (fallback: basic unique constraint on cve_id+repo+pr_url)
+- Maintainer opt-in registration UI (fallback: admin-only repository registration)
+- Severity auto-classification based on CVSS scores (fallback: manual severity entry)
+- Slack/email notifications for new contributions (defer to post-GSoC)
+- Admin analytics dashboard with charts (defer to post-GSoC)
+
+---
+
 ## Risks & mitigations
 
 - **NVD rate limits / downtime**: caching, exponential backoff, CI fixtures.
@@ -604,6 +627,30 @@ This project implements the **“Project B” layer**: it does **not** do detect
 
 ---
 
+## Minimum Viable Scope (if behind schedule)
+
+**Guaranteed minimum deliverables:**
+- `VerifiedSecurityContribution` signal/event abstraction ✓
+- Reward calculation service with severity-weighted scoring ✓
+- BACON distribution hooks (off-chain logging during pilot) ✓
+- Badge system: 3 core badges (First Fix, Security Sentinel, CVE Hunter) ✓
+- Basic leaderboard view (table with ranking, user, score, contributions) ✓
+- Leaderboard API: `GET /api/v1/leaderboard/` with pagination ✓
+- Challenge tracking: Link contributions to challenges ✓
+- Idempotency guarantee (unique constraints + transactional logic) ✓
+- Integration tests for full workflow (mock event → reward → leaderboard update) ✓
+- Pilot with 8-12 verified contributions across 3+ contributors ✓
+
+**Stretch goals (may be deferred post-GSoC):**
+- Advanced badges (10+ badge types with complex criteria)
+- Challenge gamification features (time-limited challenges, team challenges)
+- Contributor profile pages with full history and badges
+- Admin analytics dashboard with fraud detection metrics
+- Real-time leaderboard updates via WebSockets (fallback: polling)
+- Email notifications for badge awards and leaderboard changes
+
+---
+
 ## Risks & mitigations
 
 - **Reward abuse**: monthly caps, reputation gating, and manual steward oversight.
@@ -738,6 +785,29 @@ Build a structured security education platform with tiered learning tracks, hand
 
 ---
 
+## Minimum Viable Scope (if behind schedule)
+
+**Guaranteed minimum deliverables:**
+- Repository scaffold (blt-education) with Django app structure ✓
+- Learning track model (Beginner → Intermediate) ✓
+- 4 hands-on labs (XSS, SQLi, CSRF, Path Traversal) ✓
+- Sandboxed environment for safe practice (Docker containers or isolated Django views) ✓
+- Auto-quiz engine with multiple-choice questions ✓
+- Lab completion tracking linked to BLT badges ✓
+- Basic student UI (lab list, progress tracker, lab runner) ✓
+- Integration with BLT's Badge system for unlocks ✓
+- Pilot with 10-15 students ✓
+
+**Stretch goals (may be deferred post-GSoC):**
+- 6 labs instead of 4 (add Command Injection, Broken Auth)
+- Instructor review queue for manual grading (fallback: auto-grading only)
+- Mentor/cohort administration tools
+- Advanced learning track (Trusted contributor level)
+- Real-world simulation mode with anonymized BLT bug reports
+- Community-contributed lab submission workflow
+
+---
+
 <br>
 <br>
 
@@ -797,6 +867,27 @@ Create an anonymized data pipeline and public-facing insights (dashboards, repor
 **Long-term benefits:**
 - Sustainable knowledge sharing that improves ecosystem-wide hygiene.
 - A trusted playbook library that scales remediation patterns.
+
+---
+
+## Minimum Viable Scope (if behind schedule)
+
+**Guaranteed minimum deliverables:**
+- Data aggregation service (anonymize BLT security contributions) ✓
+- Public-facing dashboard with 3 key metrics (CVE trends, severity distribution, top contributors anonymized) ✓
+- 3 remediation playbook templates (SQLi, XSS, Dependency Vulnerabilities) ✓
+- Two-person approval workflow for playbook publishing ✓
+- Basic report generator (monthly summary in Markdown format) ✓
+- Redaction policy documentation ✓
+- Privacy review checklist ✓
+
+**Stretch goals (may be deferred post-GSoC):**
+- 5 playbook templates instead of 3
+- Automated quarterly reports with charts (Chart.js visualizations)
+- Case study generator with privacy controls
+- Advanced dashboards (time-series analysis, repository comparisons)
+- Export functionality (CSV, JSON) for researchers
+- Public API for aggregated data access
 
 ---
 
@@ -1060,6 +1151,36 @@ The education bridge here is **infrastructure only**: it enables education teams
 
 ---
 
+## Minimum Viable Scope (if behind schedule)
+
+**Guaranteed minimum deliverables:**
+
+**From Project B (Core):**
+- `VerifiedSecurityContribution` abstraction ✓
+- Severity-weighted reward calculation ✓
+- BACON distribution hooks (off-chain during pilot) ✓
+- 3 core badges (First Fix, Security Sentinel, CVE Hunter) ✓
+- Basic leaderboard (table view + API endpoint) ✓
+- Challenge tracking ✓
+- Idempotency and tests ✓
+- Pilot with 8-12 verified contributions ✓
+
+**From light C (Education Bridge):**
+- Read-only API: `GET /api/v1/user/<id>/badges` ✓
+- Read-only API: `GET /api/v1/user/<id>/verified-contributions` ✓
+- Badge-gating documentation (how future courses can use these APIs) ✓
+- API authentication and rate limiting ✓
+- OpenAPI schema documentation ✓
+
+**Stretch goals (may be deferred post-GSoC):**
+- Advanced badges (10+ types)
+- Challenge gamification features
+- Contributor profile pages
+- Admin analytics dashboard
+- 1-2 sample integration examples showing how a future education platform could consume the APIs
+
+---
+
 ## Risks & mitigations
 
 - **Coupling to Project A**:
@@ -1231,6 +1352,42 @@ This project assumes BLT already has a way to track verified security contributi
 - Number of badge‑driven unlocks and course claims (if integrated with BLT).
 - Number of anonymized reports produced and dashboard views.
 - Zero privacy incidents or policy violations.
+
+---
+
+## Minimum Viable Scope (if behind schedule)
+
+**Guaranteed minimum deliverables:**
+
+**From Project C (Education):**
+- Repository scaffold (blt-education) ✓
+- Learning track model (Beginner → Intermediate) ✓
+- 4 hands-on labs (XSS, SQLi, CSRF, Path Traversal) ✓
+- Sandboxed environment ✓
+- Auto-quiz engine ✓
+- Lab completion → badge integration ✓
+- Basic student UI ✓
+- Pilot with 10-15 students ✓
+
+**From Project D (Knowledge Sharing):**
+- Data aggregation service (anonymization) ✓
+- Public dashboard with 3 key metrics ✓
+- 3 remediation playbook templates ✓
+- Two-person approval workflow ✓
+- Basic monthly report generator ✓
+- Privacy documentation ✓
+
+**Shared Infrastructure:**
+- Integrated UI (education + knowledge dashboards) ✓
+- Shared governance workflow for content publishing ✓
+
+**Stretch goals (may be deferred post-GSoC):**
+- 6 labs instead of 4
+- 5 playbooks instead of 3
+- Instructor review queue
+- Advanced analytics dashboards
+- Automated quarterly reports with visualizations
+- Community-contributed labs and playbooks submission system
 
 ---
 
