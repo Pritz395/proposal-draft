@@ -109,7 +109,7 @@ All new views will follow BLT’s existing design patterns:
 - Meet accessibility expectations (WCAG 2.1 AA where applicable).
 
 ## Notes
-The project descriptions below provide a general overview of each milestone's scope. I'll finalize detailed, fact-checked deliverables (similar to those created for the first review) once I've personally selected 1–2 project proposals to pursue for GSoC.
+The project descriptions below provide detailed technical approaches, milestones, and deliverables. My preferred scope is **Project B + light C** as outlined in this document.
 
 <br>
 <br>
@@ -377,7 +377,7 @@ It is strictly **post‑disclosure**: it only tracks contributions to already pu
 - CVE extractor function with regex pattern matching and tests ✓
 - GitHub webhook handler for `pull_request.closed` events ✓
 - Basic verification dashboard (list view + verify/reject actions) ✓
-- REST API endpoints: `GET /api/v1/security-contributions/` and `PATCH /api/v1/security-contributions/<id>/verify` ✓
+- REST API endpoints: `GET /api/v1/security-contributions/` and `POST /api/v1/security-contributions/{id}/verify` ✓
 - NVD validation with fixture-based caching (no live API during pilot) ✓
 - Unit tests achieving 80%+ coverage ✓
 - Basic documentation (README, API docs) ✓
@@ -487,7 +487,7 @@ This project implements the **“Project B” layer**: it does **not** do detect
 
 ## API design (Project B)
 - **Authentication:** Django session + CSRF for web; token-based auth for external consumers.
-- **Base path:** `/api/v1/security-leaderboard/` and `/api/v1/security-rewards/`.
+- **Base path:** `/api/v1/security/leaderboard/` and `/api/v1/security/rewards/`.
 - **Pagination:** PageNumberPagination (default 25 per page).
 - **Rate limiting:** 100 requests/hour per user (aligned with existing throttling).
 - **Filtering:** time range, severity, repo, contributor.
@@ -635,7 +635,7 @@ This project implements the **“Project B” layer**: it does **not** do detect
 - BACON distribution hooks (off-chain logging during pilot) ✓
 - Badge system: 3 core badges (First Fix, Security Sentinel, CVE Hunter) ✓
 - Basic leaderboard view (table with ranking, user, score, contributions) ✓
-- Leaderboard API: `GET /api/v1/leaderboard/` with pagination ✓
+- Leaderboard API: `GET /api/v1/security/leaderboard/` with pagination ✓
 - Challenge tracking: Link contributions to challenges ✓
 - Idempotency guarantee (unique constraints + transactional logic) ✓
 - Integration tests for full workflow (mock event → reward → leaderboard update) ✓
@@ -1166,8 +1166,8 @@ The education bridge here is **infrastructure only**: it enables education teams
 - Pilot with 8-12 verified contributions ✓
 
 **From light C (Education Bridge):**
-- Read-only API: `GET /api/v1/user/<id>/badges` ✓
-- Read-only API: `GET /api/v1/user/<id>/verified-contributions` ✓
+- Read-only API: `GET /api/v1/users/{id}/badges` ✓
+- Read-only API: `GET /api/v1/users/{id}/security-stats` (returns counts by severity, last_verified_at — no CVE IDs, repo names, or links) ✓
 - Badge-gating documentation (how future courses can use these APIs) ✓
 - API authentication and rate limiting ✓
 - OpenAPI schema documentation ✓
@@ -1226,7 +1226,7 @@ This project assumes BLT already has a way to track verified security contributi
   - New repository or module with:
     - Project scaffold and CI.
     - Contribution guide and coding standards.
-  - Basic UI shell (Tailwind-based) for student and instructor views.
+  - Basic UI shell using BLT's existing UI stack and component patterns.
 
 - **Tiered learning tracks & labs**
   - Learning tracks: **Beginner → Intermediate → Trusted**.
@@ -1437,8 +1437,8 @@ This project assumes BLT already has a way to track verified security contributi
 - Should UI/UX and security bug discovery be separate workflows or unified?
 - What disclosure and contribution rules apply to automated vulnerability submissions?
 - What is the right notification strategy and maintainer consent model for proactive scanning?
-- What is the minimum viable Buttercup (or equivalent) evaluation required for Project C?
-- BACON on-chain distribution depends on Bitcoin mainnet sync completion (currently ~90%).
+- What is the minimum viable Buttercup (or equivalent) evaluation required for Project A?
+- BACON on-chain distribution depends on mainnet sync completion; during GSoC, log rewards off-chain and switch to on-chain once maintainers confirm readiness.
 
 ## Technical clarifications (current assumptions)
 - **GHSC vs Issue/Bug models:** GHSC coexists with existing Issue/Bug models and links to them; it does not replace them.
