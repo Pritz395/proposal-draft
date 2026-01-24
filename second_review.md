@@ -8,22 +8,24 @@
 5. [Project options overview](#project-options-overview-a--b--c--d)
 6. [Differentiation at a glance](#differentiation-at-a-glance)
 7. [Decision guide](#decision-guide)
-8. [UI/UX consistency](#uiux-consistency)
-9. [Notes](#notes)
-10. **Project A** — [CVE Detection & Validation Pipeline](#project-a--cve-detection--validation-pipeline-350-hours)
-11. **Project B** — [Security Contribution Gamification & Recognition](#project-b--security-contribution-gamification--recognition-350-hours)
-12. **Project C** — [blt-education Platform (standalone)](#project-c--blt-education-platform-350-hours-standalone)
-13. **Project D** — [Knowledge Sharing & Community Impact (standalone)](#project-d--knowledge-sharing--community-impact-350-hours-standalone)
-14. [Why Standalone C or D Alone May Not Be Ideal](#why-standalone-c-or-d-alone-may-not-be-ideal)
-15. [Why Combining A + B Is Impractical](#why-combining-project-a--project-b-into-one-350hour-project-is-impractical)
-16. **Preferred: B + light C** — [Security Rewards & Education Bridge](#alternative-preferred--project-b--light-c-single-350hour-project)
-17. [Decoupling Project B from Project A](#decoupling-project-b-from-project-a-parallel-development)
-18. **Combined C + D** — [blt-education + Knowledge Sharing](#combined-project-c--d-single-350hour-project)
-19. [Testing Strategy (All Projects)](#testing-strategy-all-projects)
-20. [Quality control mechanisms](#quality-control-mechanisms)
-21. [Scope boundaries and open questions](#scope-boundaries-and-open-questions)
-22. [Technical clarifications](#technical-clarifications-current-assumptions)
-23. [Documentation cross-references](#documentation-cross-references)
+8. [Project dependency flow](#project-dependency-flow)
+9. [UI/UX consistency](#uiux-consistency)
+10. [Notes](#notes)
+11. **Project A** — [CVE Detection & Validation Pipeline](#project-a--cve-detection--validation-pipeline-350-hours)
+12. **Project B** — [Security Contribution Gamification & Recognition](#project-b--security-contribution-gamification--recognition-350-hours)
+13. **Project C** — [blt-education Platform (standalone)](#project-c--blt-education-platform-350-hours-standalone)
+14. **Project D** — [Knowledge Sharing & Community Impact (standalone)](#project-d--knowledge-sharing--community-impact-350-hours-standalone)
+15. [Why Standalone C or D Alone May Not Be Ideal](#why-standalone-c-or-d-alone-may-not-be-ideal)
+16. [Why Combining A + B Is Impractical](#why-combining-project-a--project-b-into-one-350hour-project-is-impractical)
+17. **Preferred: B + light C** — [Security Rewards & Education Bridge](#alternative-preferred--project-b--light-c-single-350hour-project)
+18. [Decoupling Project B from Project A](#decoupling-project-b-from-project-a-parallel-development)
+19. **Combined C + D** — [blt-education + Knowledge Sharing](#combined-project-c--d-single-350hour-project)
+20. [Testing Strategy (All Projects)](#testing-strategy-all-projects)
+21. [Quality control mechanisms](#quality-control-mechanisms)
+22. [Scope boundaries and open questions](#scope-boundaries-and-open-questions)
+23. [Technical clarifications](#technical-clarifications-current-assumptions)
+24. [Communication & Progress Tracking](#communication--progress-tracking)
+25. [Documentation cross-references](#documentation-cross-references)
 
 ---
 
@@ -86,6 +88,20 @@ D | Knowledge sharing | OSS ecosystem | Aggregated data + governance | Medium (p
 - **Immediate contributor engagement:** choose **Project B + light C**.
 - **Strong education/content team available:** consider **Project C + D**.
 - **Foundational pipeline needed first:** prioritize **Project A**.
+
+## Project dependency flow
+```
+[GitHub PR Merge / Scanner] 
+        ↓
+[Project A: GHSC Pipeline] → verified events
+        ↓
+[Project B: Rewards Engine] → BACON, badges, leaderboards
+        ↓
+[light C: Education Bridge] → read-only APIs for curriculum
+        ↓
+[Future: Full C/D Platform] → labs, playbooks, dashboards
+```
+**Note:** Project B can run independently using mocked verification events or manual admin entries if Project A is not yet live.
 
 ## UI/UX consistency
 All new views will follow BLT’s existing design patterns:
@@ -332,7 +348,8 @@ It is strictly **post‑disclosure**: it only tracks contributions to already pu
 ## Dependencies
 
 - BLT webhook handlers for GitHub events.
-- Buttercup (or similar) scanner output format (or stubbed adapter).
+- **Buttercup scanner output format** (or equivalent CVE detection tool).
+  - **Mitigation if unavailable:** Use GitHub Security Advisory API as primary source, Dependabot alerts as fallback, or manual CVE entry via admin UI for pilot.
 - `nvdlib` for NVD API integration.
 - Redis or Django cache backend for rate‑limits and caching.
 
@@ -343,7 +360,8 @@ It is strictly **post‑disclosure**: it only tracks contributions to already pu
 - Number of opt‑in repos (pilot target: ≥ 3).
 - GHSC records created per scan/merge cadence.
 - False‑positive rate (pilot target: < 15%).
-- Median advisory/merge → maintainer verification time (target: < 72 hours).
+- Median time from GHSC creation to verification UI availability (target: < 5 minutes).
+- Maintainer feedback collected on verification workflow usability (target: ≥ 4/5 satisfaction).
 - Unit/integration test coverage for the GHSC module.
 
 ## Metrics measurement
@@ -578,8 +596,10 @@ This project implements the **“Project B” layer**: it does **not** do detect
 
 ## Metrics
 
-- Number of verified contributions awarded (pilot target: ≥ 2).
-- Leaderboard engagement (active contributors, page views).
+- Number of verified contributions awarded (pilot target: ≥ 8–12).
+- Leaderboard correctly ranks contributors by severity-weighted scores (validated with test fixtures).
+- Leaderboard API response time < 500ms for top 100 contributors.
+- At least 3 pilot contributors visible on leaderboard with distinct scores.
 - Badge issuance counts and distribution.
 - Dispute/revocation counts (should be low).
 
@@ -611,7 +631,7 @@ Build a structured security education platform with tiered learning tracks, hand
 ## Scope if standalone
 - Repository scaffold and CI for blt-education (or a dedicated module).
 - Tiered learning tracks: Beginner → Intermediate → Trusted.
-- 10–15 hands-on labs with sandboxed exercises.
+- 4–6 high-quality hands-on labs with sandboxed exercises.
 - Auto-quiz engine and instructor review queue.
 - Mentor/cohort administration tools.
 - Integration with BLT badges/leaderboards to unlock courses.
@@ -676,7 +696,7 @@ Create an anonymized data pipeline and public-facing insights (dashboards, repor
 - Anonymization and aggregation pipeline for BLT security data.
 - Public dashboards (CVE trends, severity distribution, repo categories).
 - Monthly/quarterly report generator.
-- Remediation playbook templates (5–10).
+- Remediation playbook templates (3–5).
 - Two-person approval workflow for publishing sensitive content.
 - Case study generator with privacy controls.
 
@@ -1093,7 +1113,7 @@ This project assumes BLT already has a way to track verified security contributi
 
 - **Tiered learning tracks & labs**
   - Learning tracks: **Beginner → Intermediate → Trusted**.
-  - Implement 6–10 hands‑on labs:
+  - Implement 4–6 hands‑on labs:
     - Focus on safe, synthetic scenarios (no live vulnerabilities).
     - Each lab includes:
       - Instructions,
@@ -1272,6 +1292,12 @@ This project assumes BLT already has a way to track verified security contributi
 - **Verification dashboard placement:** new `website/views/security.py` with templates under `website/templates/security/`.
 - **Leaderboards:** security leaderboard is a new severity-weighted view extending existing leaderboard patterns; it does not replace global leaderboards.
 - **Disputes/clawbacks:** disputed or revoked GHSC entries trigger a reversal record in the payout ledger and a leaderboard recompute.
+
+## Communication & Progress Tracking
+- **Weekly sync meetings:** 30–60 minutes with mentor(s) to discuss blockers and next steps.
+- **Bi-weekly blog posts:** Public progress updates on BLT blog or GitHub Discussions.
+- **Daily async updates:** Brief status in Slack/Discord (what I did, what's next, any blockers).
+- **Milestone demos:** Live demos at weeks 4, 7, 10, 12 (midterm checkpoints and final).
 
 ## Documentation cross-references
 - `docs/features.md` for current capability descriptions.
