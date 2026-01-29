@@ -14,7 +14,7 @@ A short reference of BLT GSoC project options. For full technical details, miles
 
 ## Purpose
 
-Synthesizes community direction (Discussion #5495) and outlines five GSoC project options (A–E). Each standalone project fits one 350-hour slot. The preferred proposal is **Project B plus the light C add-on** in a single slot.
+Synthesizes community direction (Discussion #5495) and outlines five GSoC project options (A–E). Each standalone project fits one 350-hour slot. One recommended combination is **Project B plus the light C add-on** in a single slot.
 
 ---
 
@@ -77,20 +77,21 @@ Project B can be extended with a **light C** add-on in the same 350-hour slot. L
 
 ---
 
-## Recommendation & interest
+## Recommendation
 
-- **Recommendation:** **Project B + light C** — immediate community value (rewards, leaderboards, challenges) plus a small education bridge so future tools can consume badges/leaderboards. Fits one 350-hour slot; B can run on mocked verification events if Project A is not live.
-- **Alternate:** **Project A** if the priority is to build the verification pipeline first.
-- **Personal interest:** **Project B + light C** as one 350-hour project: core B (rewards, leaderboards) plus the light C add-on (APIs/webhooks only, no curriculum).
+- **Recommended single project:** **Project B + light C** — rewards, leaderboards, and challenges for verified security contributions, plus a small education bridge (read-only APIs for badges/leaderboards). Fits one 350-hour slot; B can run on mocked verification events if Project A is not live.
+- **Alternative:** **Project A** when the priority is to build the CVE detection and verification pipeline first.
 
 ---
 
 ## Decision guide
 
-- **Immediate contributor engagement** → **Project B + light C**
-- **Strong education/content team** → **Project C + D** (combined into one 350h project)
-- **Foundational pipeline first** → **Project A**
-- **Better PR workflow & contributor visibility** → **Project E** (PR readiness tracker + dashboard)
+Choose by primary goal (one project per slot):
+
+- **Rewards & recognition for verified security work** (BACON, badges, leaderboards, education bridge) → **Project B + light C**
+- **CVE detection & verification pipeline** (GHSC, NVD, maintainer verification UI/API) → **Project A**
+- **PR readiness & merge workflow** (CI aggregation, discussion analysis, reviewer intent, web dashboard) → **Project E**
+- **Structured education & knowledge sharing** (labs, playbooks, dashboards, approval workflow) → **Project C + D** (combined into one 350h project)
 
 ---
 
