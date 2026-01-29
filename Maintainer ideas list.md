@@ -77,13 +77,6 @@ Project B can be extended with a **light C** add-on in the same 350-hour slot. L
 
 ---
 
-## Recommendation
-
-- **Recommended single project:** **Project B + light C** — rewards, leaderboards, and challenges for verified security contributions, plus a small education bridge (read-only APIs for badges/leaderboards). Fits one 350-hour slot; B can run on mocked verification events if Project A is not live.
-- **Alternative:** **Project A** when the priority is to build the CVE detection and verification pipeline first.
-
----
-
 ## Decision guide
 
 Choose by primary goal (one project per slot):
