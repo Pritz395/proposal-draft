@@ -6,7 +6,7 @@ A short reference of BLT GSoC project options. For full technical details, miles
 
 ## At a glance
 
-- **Four standalone project options (A–D):** each is a full 350-hour GSoC project on its own.
+- **Five standalone project options (A–E):** each is a full 350-hour GSoC project on its own.
 - **One add-on (“light C”):** not a standalone project. It extends **Project B** with read-only APIs and optional webhooks so future education tools can use badges/leaderboards to gate or unlock content. The **recommended** single 350-hour project is **B + light C** — i.e. Project B plus this add-on.
 - **Other combinations:** C and D can be combined into one 350-hour project (education + knowledge sharing). A and B are kept as separate projects.
 
@@ -14,11 +14,11 @@ A short reference of BLT GSoC project options. For full technical details, miles
 
 ## Purpose
 
-Synthesizes community direction (Discussion #5495) and outlines four GSoC project options (A–D). Each standalone project fits one 350-hour slot. The preferred proposal is **Project B plus the light C add-on** in a single slot.
+Synthesizes community direction (Discussion #5495) and outlines five GSoC project options (A–E). Each standalone project fits one 350-hour slot. The preferred proposal is **Project B plus the light C add-on** in a single slot.
 
 ---
 
-## The four standalone options (A, B, C, D)
+## The five standalone options (A, B, C, D, E)
 
 ### Project A — CVE Detection & Validation Pipeline
 
@@ -55,6 +55,14 @@ Project B can be extended with a **light C** add-on in the same 350-hour slot. L
 
 ---
 
+### Project E — PR Readiness Tracker & Contributor Dashboard
+
+**One line:** Web-based PR readiness checker with CI aggregation, discussion analysis, reviewer intent detection, and a contributor-facing dashboard.
+
+**Description:** A single 350-hour project that answers “when is this PR actually ready?” in one place. **CI aggregation** combines all GitHub check runs and commit statuses into one pass/fail/pending state. **Discussion analysis** classifies review comments (e.g. actionable vs non-actionable vs resolved) and tracks thread resolution so contributors know what still needs a response. **Reviewer intent detection** distinguishes blocking feedback from suggestions and nitpicks (with support for common bots like CodeRabbit, Cursor, etc.). Contributors drop PRs into a **web dashboard** to track readiness across multiple PRs, re-check after addressing feedback, and get a clear status (e.g. READY, ACTION_REQUIRED, CI_FAILING). Aligns with GSoC goals around contributor tooling and AI-assisted workflows; can integrate with BLT’s GitHub workflows and optionally feed into verification pipelines (e.g. Project A) later. Inspired by the [Good To Go](https://dsifry.github.io/goodtogo/) approach (deterministic PR readiness) but adds a BLT-hosted web UI and deeper discussion/reviewer-intent analysis.
+
+---
+
 ## Differentiation (standalone options)
 
 | Project | Focus | Beneficiaries | Dependencies | Risk level |
@@ -63,6 +71,7 @@ Project B can be extended with a **light C** add-on in the same 350-hour slot. L
 | B | Rewards + recognition | Active contributors | Verified signals (or mocks) | Medium (gaming, economics) |
 | C | Education platform | New contributors | Content, mentoring | Medium (content burden) |
 | D | Knowledge sharing | OSS ecosystem | Aggregated data, governance | Medium (privacy) |
+| E | PR readiness & workflow | Contributors, maintainers | GitHub API, (optional) BLT auth | Medium (API limits, parsers) |
 
 *The recommended single project is **B + light C**: Project B plus the education-bridge add-on described above.*
 
@@ -81,6 +90,7 @@ Project B can be extended with a **light C** add-on in the same 350-hour slot. L
 - **Immediate contributor engagement** → **Project B + light C**
 - **Strong education/content team** → **Project C + D** (combined into one 350h project)
 - **Foundational pipeline first** → **Project A**
+- **Better PR workflow & contributor visibility** → **Project E** (PR readiness tracker + dashboard)
 
 ---
 
@@ -89,8 +99,10 @@ Project B can be extended with a **light C** add-on in the same 350-hour slot. L
 - **Decoupling B from A:** B is designed around a generic “verified security contribution” event; it does not require Project A. Fixtures or a small admin UI can supply events during GSoC; A→B integration is optional later.
 - **A + B in one 350-hour slot:** Not recommended; both need focused scope, testing, and pilot time. Treat as two separate projects.
 - **C + D combined:** One 350-hour project is possible: education platform (tracks, labs, quizzes, review) plus knowledge-sharing (anonymization, dashboards, playbooks, approval workflow). Shares data and governance concerns.
+- **Project E and A:** E (PR readiness) is independent. Optionally, “PR ready” from E could later feed into A’s pipeline (e.g. only consider PRs for GHSC once readiness is READY or after manual triage), but that integration is out of scope for a single 350h slot.
 
 ---
 
 *Full specs, milestones, APIs, and MVP scope are in [second_review.md](second_review.md).*
+
 
