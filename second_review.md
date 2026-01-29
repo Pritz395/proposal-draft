@@ -179,21 +179,6 @@ It is strictly **post‑disclosure**: it only tracks contributions to already pu
     - Emit a Django signal (internal consumers).
     - Optionally emit a webhook event (future external consumers, e.g., rewards/education).
 
-## Technical integration points
-- Add `GitHubSecurityContribution` to `website/models.py` (or a new `website/security/models.py` module if we split security code).
-- Extend GitHub webhook handlers in `website/views/user.py` for PR/review events.
-- Add CVE/NVD logic in `website/services/cve_service.py` (or `website/services/nvd_client.py`).
-- Add verification dashboard in `website/views/security.py` with templates under `website/templates/security/`.
-- Register routes in `blt/urls.py` (or existing API routing module).
-
-## Project A API design (can be adjusted as needed)
-- **Authentication:** Django session + CSRF for web; token-based auth for external consumers.
-- **Base path:** `/api/v1/security-contributions/`.
-- **Pagination:** PageNumberPagination (default 25 per page).
-- **Rate limiting:** 100 requests/hour per user (via existing throttling middleware or `django-ratelimit`).
-- **Filtering:** status, repo, severity, contributor via FilterBackend.
-- **Errors:** consistent JSON error shape with `code`, `detail`, and `field_errors`.
-
 ---
 
 ## Pros
@@ -296,21 +281,6 @@ This project implements the **“Project B” layer**: it does **not** do detect
   - Simple heuristics (and manual review) to spot:
     - Repetitive trivial changes,
     - Suspicious claim patterns.
-
-## Technical integration points
-- Hook rewards into `website/feed_signals.py` (`giveBacon()`), with an auditable payout ledger model in `website/models.py`.
-- Extend `website/challenge_signals.py` for security challenge progress updates.
-- Add `SecurityLeaderboardView` in `website/views/leaderboard.py` (or `website/views/user.py` if that’s the current pattern).
-- Add API endpoints in `website/api/` or existing API module and route them in `blt/urls.py`.
-- Add admin audit views in `website/admin.py` and templates under `website/templates/security/`.
-
-## Project B API design (can be adjusted)
-- **Authentication:** Django session + CSRF for web; token-based auth for external consumers.
-- **Base path:** `/api/v1/security/leaderboard/` and `/api/v1/security/rewards/`.
-- **Pagination:** PageNumberPagination (default 25 per page).
-- **Rate limiting:** 100 requests/hour per user (aligned with existing throttling).
-- **Filtering:** time range, severity, repo, contributor.
-- **Errors:** consistent JSON error shape with `code`, `detail`, and `field_errors`.
 
 ---
 
@@ -430,12 +400,6 @@ Build a structured security education platform with tiered learning tracks, hand
 - Badge-based unlock integration.
 - Documentation and pilot report.
 
-## Technical approach (standalone)
-- Extend existing Course/Lecture concepts or create a dedicated `education` app.
-- Build lab content as structured markdown + metadata with sandboxed exercises.
-- Implement auto-quiz grading and an instructor review queue.
-- Integrate badge/leaderboard checks for gated access (read-only).
-
 ## Pros
 - Structured onboarding path for new security contributors.
 - Clear progression from beginner to trusted contributor.
@@ -486,11 +450,6 @@ Create an anonymized data pipeline and public-facing insights (dashboards, repor
 - Automated report generation.
 - Playbook library with governance workflow.
 - Documentation on redaction policies.
-
-## Technical approach (standalone)
-- Build an aggregation pipeline to transform BLT data into safe, anonymized metrics.
-- Render dashboards with existing chart tooling and exportable reports.
-- Create a playbook authoring template with a two-person approval workflow.
 
 ## Pros
 - Broad community impact via safe public insights.
@@ -605,28 +564,6 @@ This separation:
 
 ---
 
-## If a compressed combined MVP is required
-
-If mentors strongly prefer a **single combined A+B MVP**, the project would need very strict scope reductions, such as:
-
-- **For Project A**:
-  - Minimal GHSC fields and a limited subset of event sources (e.g., only merged PRs with labels).
-  - Simplified NVD integration using fixtures and basic caching.
-  - Basic verification UI without advanced filters or bulk actions.
-
-- **For Project B**:
-  - Rewards as **logged simulations only** (no real BACON transfers in production).
-  - A single, simple severity‑weighted leaderboard (no advanced filters).
-  - No challenges or complex reputation tiers; just base badges and a basic scoreboard.
-  - Very limited pilot (1 repo, few contributors).
-
-Even under this constrained MVP, much of the fraud prevention, governance, and production‑hardening work would remain as **future work**, making it less suitable as a “complete” GSoC deliverable.
-
-For these reasons, the recommended plan is to **treat A and B as two separate 350‑hour projects**, each with its own milestones, tests, and pilot.
-
-<br>
-<br>
-
 ────────────────────────────────────────────────────────────
 Alternative (personally preferred for GSoC) — Project B + light C (Single 350‑Hour Project)
 Security Rewards & Leaderboards + Education Bridge
@@ -701,11 +638,6 @@ Deliver the rewards, badges, reputation, leaderboards, challenges, and analytics
     - How to query badges/leaderboards.
     - How to wire badge events to course unlocks.
 
-- **Testing & docs**
-  - Tests and mocked demos using GHSC verification events (real or simulated).
-  - Contributor guide (how security rewards work).
-  - Education integration guide (how to consume the bridge).
-
 ---
 
 ## Uncovered points in “light C” (explicitly out of scope)
@@ -748,67 +680,5 @@ Combining them into one project:
 - Provides safer, well‑reviewed public outputs (dashboards, playbooks, case studies).
 
 This project assumes BLT already has a way to track verified security contributions (e.g., GHSC), but it does **not** depend on a particular implementation; it can work with mocked or generic fixtures if needed.
-
----
-
-## Concrete deliverables
-
-- **blt‑education scaffold**
-  - New repository or module with:
-    - Project scaffold and CI.
-    - Contribution guide and coding standards.
-  - Basic UI shell using BLT's existing UI stack and component patterns.
-
-- **Tiered learning tracks & labs**
-  - Learning tracks: **Beginner → Intermediate → Trusted**.
-  - Implement 4–6 hands‑on labs:
-    - Focus on safe, synthetic scenarios (no live vulnerabilities).
-    - Each lab includes:
-      - Instructions,
-      - Sandbox or code snippet,
-      - Quiz or short exercise.
-
-- **Auto‑quiz engine & review queue**
-  - Auto‑quiz engine for basic checks (multiple‑choice, simple code analysis).
-  - Instructor review queue for:
-    - Subjective assessments,
-    - Lab submissions that need human feedback.
-  - Feedback UI for instructors to respond to students.
-
-- **Education ↔ BLT integration endpoints**
-  - Read‑only integration with BLT:
-    - Query badges/reputation/leaderboards (if available).
-    - Webhook subscription for “learner reached Trusted tier” or similar.
-  - Optional: unlock advanced labs or tracks based on BLT signals (e.g., Verified security contributor).
-
-- **Anonymization & aggregation pipeline**
-  - Pipeline to:
-    - Aggregate data from BLT (e.g., counts of CVEs fixed by severity, per language).
-    - Anonymize and sanitize:
-      - No repository or user PII unless explicitly permitted.
-      - No raw vulnerability or exploit content.
-  - Output:
-    - Aggregated datasets for dashboards and reports.
-
-- **Dashboards & report generator**
-  - Dashboards:
-    - High‑level trends (e.g., common vulnerability types, fix frequencies).
-    - Educational insights (e.g., which lab topics map to common real‑world issues).
-  - Monthly or quarterly report generator:
-    - Templated “state of fixes” reports.
-    - Includes charts and anonymized stats.
-
-- **Playbooks & remediation templates**
-  - A small set (e.g., 3–5) of remediation playbooks:
-    - Sanitized, pattern‑based guidance (e.g., “fixing typical XSS configuration issues in Django”).
-  - Two‑person approval workflow for publishing case studies:
-    - Ensure no sensitive details are leaked.
-    - Sign‑off from both a technical reviewer and privacy/security reviewer.
-
-- **Mentor/instructor tools & pilot**
-  - Simple tools for:
-    - Assigning labs to a pilot cohort (5–10 students).
-    - Viewing progress and lab completion.
-  - Run a small pilot and capture feedback in a final pilot report.
 
 ---
